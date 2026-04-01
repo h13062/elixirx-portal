@@ -1,0 +1,19 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+
+# Deployment
+.vercel/
