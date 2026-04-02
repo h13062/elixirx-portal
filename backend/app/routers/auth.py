@@ -42,8 +42,12 @@ CREATE TABLE IF NOT EXISTS admin_log (
 
 import random
 import string
+import traceback
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from gotrue.types import AdminUserAttributes
+from postgrest.exceptions import APIError
+from pydantic import BaseModel
 
 from app.core.auth import require_super_admin
 from app.core.config import ADMIN_SETUP_CODE
@@ -94,96 +98,133 @@ def admin_setup(payload: AdminSetupRequest, request: Request):
     is_first = _profile_count() == 0
     ip_address = request.client.host if request.client else None
 
-    if is_first:
-        # First account: validate against the master env-var code
-        if payload.admin_code != ADMIN_SETUP_CODE:
+    try:
+        if is_first:
+            if payload.admin_code != ADMIN_SETUP_CODE:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid admin code")
+
+            try:
+                auth_resp = supabase.auth.admin.create_user(
+                    AdminUserAttributes(
+                        email=payload.email,
+                        password=payload.password,
+                        email_confirm=True,
+                        user_metadata={"full_name": payload.full_name, "role": "super_admin"},
+                    )
+                )
+                print(f"User created successfully: {auth_resp.user.id}")
+            except Exception as e:
+                print(f"FULL CREATE_USER ERROR: {type(e).__name__}: {str(e)}")
+                print(f"TRACEBACK: {traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=f"Create user failed: {type(e).__name__}: {str(e)}")
+
+            user = auth_resp.user
+            if not user:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create auth user")
+
+            # Trigger auto-creates profile with role='rep'; correct it here
+            try:
+                supabase.table("profiles").update({
+                    "role": "super_admin",
+                    "account_status": "active",
+                    "full_name": payload.full_name,
+                }).eq("id", user.id).execute()
+                print(f"Profile updated successfully")
+            except Exception as e:
+                print(f"FULL PROFILE ERROR: {type(e).__name__}: {str(e)}")
+                print(f"TRACEBACK: {traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=f"Profile update failed: {type(e).__name__}: {str(e)}")
+
+            supabase.table("admin_log").insert({
+                "event": "super_admin_created",
+                "target_id": user.id,
+                "ip_address": ip_address,
+            }).execute()
+
+            return AdminSetupResponse(
+                success=True,
+                message="Super admin account created successfully",
+                is_first_account=True,
+            )
+
+        # Not the first account: validate against the admin_codes table
+        code_resp = (
+            supabase.table("admin_codes")
+            .select("*")
+            .eq("code", payload.admin_code)
+            .single()
+            .execute()
+        )
+        code_row = code_resp.data
+        if not code_row:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid admin code")
 
-        auth_resp = supabase.auth.admin.create_user({
-            "email": payload.email,
-            "password": payload.password,
-            "email_confirm": True,
-        })
+        if code_row["status"] != "active":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin code has already been used or expired")
+
+        expires_at = datetime.fromisoformat(code_row["expires_at"].replace("Z", "+00:00"))
+        if datetime.now(timezone.utc) > expires_at:
+            supabase.table("admin_codes").update({"status": "expired"}).eq("id", code_row["id"]).execute()
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin code has expired")
+
+        try:
+            auth_resp = supabase.auth.admin.create_user(
+                AdminUserAttributes(
+                    email=payload.email,
+                    password=payload.password,
+                    email_confirm=True,
+                    user_metadata={"full_name": payload.full_name, "role": "admin"},
+                )
+            )
+            print(f"User created successfully: {auth_resp.user.id}")
+        except Exception as e:
+            print(f"FULL CREATE_USER ERROR: {type(e).__name__}: {str(e)}")
+            print(f"TRACEBACK: {traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Create user failed: {type(e).__name__}: {str(e)}")
+
         user = auth_resp.user
         if not user:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create auth user")
 
-        supabase.table("profiles").insert({
-            "id": user.id,
-            "email": payload.email,
-            "full_name": payload.full_name,
-            "role": "super_admin",
-            "account_status": "active",
-        }).execute()
+        # Trigger auto-creates profile with role='rep'; correct it here
+        try:
+            supabase.table("profiles").update({
+                "role": "admin",
+                "account_status": "active",
+                "full_name": payload.full_name,
+            }).eq("id", user.id).execute()
+            print(f"Profile updated successfully")
+        except Exception as e:
+            print(f"FULL PROFILE ERROR: {type(e).__name__}: {str(e)}")
+            print(f"TRACEBACK: {traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Profile update failed: {type(e).__name__}: {str(e)}")
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        supabase.table("admin_codes").update({
+            "status": "used",
+            "used_by": user.id,
+            "used_at": now_iso,
+        }).eq("id", code_row["id"]).execute()
 
         supabase.table("admin_log").insert({
-            "event": "super_admin_created",
+            "event": "admin_created",
             "target_id": user.id,
+            "code_used": payload.admin_code,
             "ip_address": ip_address,
         }).execute()
 
         return AdminSetupResponse(
             success=True,
-            message="Super admin account created successfully",
-            is_first_account=True,
+            message="Admin account created successfully",
+            is_first_account=False,
         )
 
-    # Not the first account: validate against the admin_codes table
-    code_resp = (
-        supabase.table("admin_codes")
-        .select("*")
-        .eq("code", payload.admin_code)
-        .single()
-        .execute()
-    )
-    code_row = code_resp.data
-    if not code_row:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid admin code")
-
-    if code_row["status"] != "active":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin code has already been used or expired")
-
-    expires_at = datetime.fromisoformat(code_row["expires_at"].replace("Z", "+00:00"))
-    if datetime.now(timezone.utc) > expires_at:
-        supabase.table("admin_codes").update({"status": "expired"}).eq("id", code_row["id"]).execute()
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin code has expired")
-
-    auth_resp = supabase.auth.admin.create_user({
-        "email": payload.email,
-        "password": payload.password,
-        "email_confirm": True,
-    })
-    user = auth_resp.user
-    if not user:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create auth user")
-
-    supabase.table("profiles").insert({
-        "id": user.id,
-        "email": payload.email,
-        "full_name": payload.full_name,
-        "role": "admin",
-        "account_status": "active",
-    }).execute()
-
-    now_iso = datetime.now(timezone.utc).isoformat()
-    supabase.table("admin_codes").update({
-        "status": "used",
-        "used_by": user.id,
-        "used_at": now_iso,
-    }).eq("id", code_row["id"]).execute()
-
-    supabase.table("admin_log").insert({
-        "event": "admin_created",
-        "target_id": user.id,
-        "code_used": payload.admin_code,
-        "ip_address": ip_address,
-    }).execute()
-
-    return AdminSetupResponse(
-        success=True,
-        message="Admin account created successfully",
-        is_first_account=False,
-    )
+    except HTTPException:
+        raise
+    except APIError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
 
 # ---------------------------------------------------------------------------
@@ -244,12 +285,6 @@ def admin_log(current_user: dict = Depends(require_super_admin)):
 # ---------------------------------------------------------------------------
 # PUT /api/auth/admin-setup/toggle  (super_admin only)
 # ---------------------------------------------------------------------------
-
-class _ToggleBody(AdminSetupRequest):
-    pass
-
-
-from pydantic import BaseModel
 
 class ToggleBody(BaseModel):
     enabled: bool

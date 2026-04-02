@@ -1,19 +1,43 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { apiPost } from '../lib/api'
 import './Login.css'
 
+interface LoginResponse {
+  access_token: string
+  token_type: string
+}
+
 export default function Login() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const clearError = () => { if (error) setError('') }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    // API call placeholder
-    setLoading(false)
+
+    try {
+      const data = await apiPost<LoginResponse>('/api/auth/login', { email, password })
+      localStorage.setItem('token', data.access_token)
+      navigate('/dashboard')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong'
+      if (message.includes('401') || message.toLowerCase().includes('invalid')) {
+        setError('Invalid email or password')
+      } else if (message.includes('403')) {
+        setError('Your account is not active. Contact your administrator.')
+      } else {
+        setError(message)
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -32,7 +56,7 @@ export default function Login() {
               type="email"
               placeholder="Email address"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={e => { setEmail(e.target.value); clearError() }}
             />
           </div>
 
@@ -42,7 +66,7 @@ export default function Login() {
               type="password"
               placeholder="Password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={e => { setPassword(e.target.value); clearError() }}
             />
           </div>
 

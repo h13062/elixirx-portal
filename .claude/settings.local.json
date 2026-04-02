@@ -4,7 +4,8 @@
       "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
       "Bash(npm --version)",
       "Bash(npm create:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(venv/Scripts/pip install:*)"
     ]
   }
 }

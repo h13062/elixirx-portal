@@ -1,21 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
-
-function AdminSetup() {
-  return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#0A0F1C',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#F8FAFC',
-      fontSize: '18px',
-    }}>
-      Admin Setup - Coming Soon
-    </div>
-  )
-}
+import AdminSetup from './pages/AdminSetup'
+import Dashboard from './pages/Dashboard'
 
 function App() {
   return (
@@ -24,6 +10,7 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/admin-setup" element={<AdminSetup />} />
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
   )
