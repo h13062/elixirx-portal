@@ -1,13 +1,31 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import Login from './pages/Login'
+
+function AdminSetup() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#0A0F1C',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#F8FAFC',
+      fontSize: '18px',
+    }}>
+      Admin Setup - Coming Soon
+    </div>
+  )
+}
+
 function App() {
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ backgroundColor: '#0A0F1C' }}
-    >
-      <h1 className="text-4xl font-bold text-white tracking-tight">
-        Elixir<span style={{ color: '#06B6D4' }}>X</span> Sales Portal
-      </h1>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/admin-setup" element={<AdminSetup />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
