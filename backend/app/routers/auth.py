@@ -45,6 +45,7 @@ import string
 import traceback
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from gotrue.types import AdminUserAttributes
 from postgrest.exceptions import APIError
 from pydantic import BaseModel
@@ -57,9 +58,119 @@ from app.models.auth import (
     AdminSetupRequest,
     AdminSetupResponse,
     GenerateAdminCodeRequest,
+    LoginRequest,
+    LoginResponse,
+    UserProfile,
 )
 
+bearer_scheme = HTTPBearer()
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+# ---------------------------------------------------------------------------
+# POST /api/auth/login
+# ---------------------------------------------------------------------------
+
+@router.post("/login", response_model=LoginResponse)
+def login(payload: LoginRequest):
+    try:
+        auth_resp = supabase.auth.sign_in_with_password({"email": payload.email, "password": payload.password})
+        session = auth_resp.session
+        user = auth_resp.user
+        if not session or not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    try:
+        profile_resp = (
+            supabase.table("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .execute()
+        )
+        if not profile_resp.data or len(profile_resp.data) == 0:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User profile not found")
+
+        profile = profile_resp.data[0]
+
+        if profile.get("account_status") != "active":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account is not active. Contact your administrator.",
+            )
+
+        return LoginResponse(
+            access_token=session.access_token,
+            refresh_token=session.refresh_token,
+            user=UserProfile(
+                id=profile["id"],
+                email=profile["email"],
+                full_name=profile["full_name"],
+                role=profile["role"],
+                tier=profile.get("tier"),
+                account_status=profile["account_status"],
+            ),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# POST /api/auth/logout
+# ---------------------------------------------------------------------------
+
+@router.post("/logout")
+def logout():
+    return {"success": True, "message": "Logged out"}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/auth/me
+# ---------------------------------------------------------------------------
+
+@router.get("/me", response_model=UserProfile)
+def me(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    token = credentials.credentials
+    try:
+        user_resp = supabase.auth.get_user(token)
+        user = user_resp.user
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    try:
+        profile_resp = (
+            supabase.table("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .execute()
+        )
+        if not profile_resp.data or len(profile_resp.data) == 0:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User profile not found")
+
+        profile = profile_resp.data[0]
+
+        return UserProfile(
+            id=profile["id"],
+            email=profile["email"],
+            full_name=profile["full_name"],
+            role=profile["role"],
+            tier=profile.get("tier"),
+            account_status=profile["account_status"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
 
 def _admin_setup_enabled() -> bool:
@@ -67,11 +178,10 @@ def _admin_setup_enabled() -> bool:
         supabase.table("system_config")
         .select("value")
         .eq("key", "admin_setup_enabled")
-        .single()
         .execute()
     )
-    if resp.data:
-        return resp.data["value"].lower() == "true"
+    if resp.data and len(resp.data) > 0:
+        return resp.data[0]["value"].lower() == "true"
     return True  # default open if row missing
 
 
@@ -152,12 +262,11 @@ def admin_setup(payload: AdminSetupRequest, request: Request):
             supabase.table("admin_codes")
             .select("*")
             .eq("code", payload.admin_code)
-            .single()
             .execute()
         )
-        code_row = code_resp.data
-        if not code_row:
+        if not code_resp.data or len(code_resp.data) == 0:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid admin code")
+        code_row = code_resp.data[0]
 
         if code_row["status"] != "active":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin code has already been used or expired")

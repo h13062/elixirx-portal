@@ -2,6 +2,26 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserProfile(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+    tier: str | None = None
+    account_status: str
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    user: UserProfile
+
+
 class AdminSetupRequest(BaseModel):
     email: str
     password: str

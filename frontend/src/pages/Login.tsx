@@ -1,15 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiPost } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import './Login.css'
-
-interface LoginResponse {
-  access_token: string
-  token_type: string
-}
 
 export default function Login() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -17,21 +13,23 @@ export default function Login() {
 
   const clearError = () => { if (error) setError('') }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      const data = await apiPost<LoginResponse>('/api/auth/login', { email, password })
-      localStorage.setItem('token', data.access_token)
+      await login(email, password)
       navigate('/dashboard')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong'
-      if (message.includes('401') || message.toLowerCase().includes('invalid')) {
-        setError('Invalid email or password')
-      } else if (message.includes('403')) {
+      if (message.toLowerCase().includes('not active')) {
         setError('Your account is not active. Contact your administrator.')
+      } else if (
+        message.toLowerCase().includes('invalid') ||
+        message.toLowerCase().includes('password')
+      ) {
+        setError('Invalid email or password')
       } else {
         setError(message)
       }

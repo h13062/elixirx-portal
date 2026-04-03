@@ -20,13 +20,12 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
         supabase.table("profiles")
         .select("*")
         .eq("id", user.id)
-        .single()
         .execute()
     )
-    if not profile_resp.data:
+    if not profile_resp.data or len(profile_resp.data) == 0:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User profile not found")
 
-    return profile_resp.data
+    return profile_resp.data[0]
 
 
 def require_admin(profile: dict = Depends(get_current_user)) -> dict:

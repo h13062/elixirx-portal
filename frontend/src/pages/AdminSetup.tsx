@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiPost } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import './AdminSetup.css'
 
 interface AdminSetupResponse {
@@ -11,35 +12,31 @@ interface AdminSetupResponse {
 
 export default function AdminSetup() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [adminCode, setAdminCode] = useState('')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   const clearError = () => { if (error) setError('') }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setSuccess('')
 
     try {
-      const data = await apiPost<AdminSetupResponse>('/api/auth/admin-setup', {
+      await apiPost<AdminSetupResponse>('/api/auth/admin-setup', {
         email,
         password,
         full_name: fullName,
         admin_code: adminCode,
       })
 
-      let msg = 'Admin account created successfully!'
-      if (data.is_first_account) msg += ' You are the Super Admin.'
-      setSuccess(msg)
-
-      setTimeout(() => navigate('/login'), 2000)
+      await login(email, password)
+      navigate('/dashboard')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong'
       setError(message)
@@ -107,7 +104,6 @@ export default function AdminSetup() {
           </button>
 
           {error && <div className="admin-error">{error}</div>}
-          {success && <div className="admin-success">{success}</div>}
         </form>
       </div>
 
