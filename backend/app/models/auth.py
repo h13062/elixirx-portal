@@ -43,3 +43,18 @@ class AdminCodeResponse(BaseModel):
     code: str
     created_at: datetime
     note: str | None = None
+
+
+class InviteRequest(BaseModel):
+    email: str
+    tier: str
+
+
+class InvitationResponse(BaseModel):
+    id: str
+    email: str
+    tier: str
+    status: str
+    invited_by: str
+    created_at: datetime
+    accepted_at: datetime | None = None

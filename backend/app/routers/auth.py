@@ -50,7 +50,7 @@ from gotrue.types import AdminUserAttributes
 from postgrest.exceptions import APIError
 from pydantic import BaseModel
 
-from app.core.auth import require_super_admin
+from app.core.auth import require_admin, require_super_admin
 from app.core.config import ADMIN_SETUP_CODE
 from app.core.supabase_client import supabase
 from app.models.auth import (
@@ -58,6 +58,8 @@ from app.models.auth import (
     AdminSetupRequest,
     AdminSetupResponse,
     GenerateAdminCodeRequest,
+    InvitationResponse,
+    InviteRequest,
     LoginRequest,
     LoginResponse,
     UserProfile,
@@ -410,3 +412,137 @@ def toggle_admin_setup(
     }).execute()
     state = "enabled" if body.enabled else "disabled"
     return {"success": True, "message": f"Admin setup is now {state}"}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/auth/invite  (admin or super_admin only)
+# ---------------------------------------------------------------------------
+
+VALID_TIERS = {"distributor", "agent", "master_agent"}
+
+
+@router.post("/invite", response_model=InvitationResponse, status_code=201)
+def invite_user(
+    payload: InviteRequest,
+    current_user: dict = Depends(require_admin),
+):
+    if payload.tier not in VALID_TIERS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid tier. Must be one of: {', '.join(sorted(VALID_TIERS))}",
+        )
+
+    try:
+        # Check if email already exists in profiles
+        existing_resp = (
+            supabase.table("profiles")
+            .select("id")
+            .eq("email", payload.email)
+            .execute()
+        )
+        if existing_resp.data and len(existing_resp.data) > 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
+
+        # Check for a pending invitation
+        pending_resp = (
+            supabase.table("invitations")
+            .select("id")
+            .eq("email", payload.email)
+            .eq("status", "pending")
+            .execute()
+        )
+        if pending_resp.data and len(pending_resp.data) > 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation already pending for this email")
+
+        # Save invitation record
+        now_iso = datetime.now(timezone.utc).isoformat()
+        insert_resp = (
+            supabase.table("invitations")
+            .insert({
+                "email": payload.email,
+                "tier": payload.tier,
+                "invited_by": current_user["id"],
+                "status": "pending",
+                "created_at": now_iso,
+            })
+            .execute()
+        )
+        if not insert_resp.data or len(insert_resp.data) == 0:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create invitation")
+
+        invitation = insert_resp.data[0]
+
+        # Send invitation email via Supabase
+        try:
+            supabase.auth.admin.invite_user_by_email(payload.email)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Invitation saved but email could not be sent: {str(e)}",
+            )
+
+        return InvitationResponse(
+            id=invitation["id"],
+            email=invitation["email"],
+            tier=invitation["tier"],
+            status=invitation["status"],
+            invited_by=invitation["invited_by"],
+            created_at=invitation["created_at"],
+            accepted_at=invitation.get("accepted_at"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/auth/invitations  (admin or super_admin only)
+# ---------------------------------------------------------------------------
+
+@router.get("/invitations")
+def list_invitations(current_user: dict = Depends(require_admin)):
+    try:
+        resp = (
+            supabase.table("invitations")
+            .select("id, email, tier, status, invited_by, created_at, accepted_at")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return resp.data or []
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/auth/invitations/{invitation_id}  (admin or super_admin only)
+# ---------------------------------------------------------------------------
+
+@router.delete("/invitations/{invitation_id}")
+def cancel_invitation(
+    invitation_id: str,
+    current_user: dict = Depends(require_admin),
+):
+    try:
+        fetch_resp = (
+            supabase.table("invitations")
+            .select("id, status")
+            .eq("id", invitation_id)
+            .execute()
+        )
+        if not fetch_resp.data or len(fetch_resp.data) == 0:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
+
+        invitation = fetch_resp.data[0]
+        if invitation["status"] != "pending":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can only cancel pending invitations")
+
+        supabase.table("invitations").update({"status": "cancelled"}).eq("id", invitation_id).execute()
+
+        return {"success": True, "message": "Invitation cancelled"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
