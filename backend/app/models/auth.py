@@ -47,14 +47,10 @@ class AdminCodeResponse(BaseModel):
 
 class InviteRequest(BaseModel):
     email: str
+    full_name: str
     tier: str
 
 
-class InvitationResponse(BaseModel):
-    id: str
-    email: str
-    tier: str
-    status: str
-    invited_by: str
-    created_at: datetime
-    accepted_at: datetime | None = None
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str

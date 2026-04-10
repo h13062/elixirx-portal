@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS admin_log (
 """
 
 import random
+import secrets
 import string
 import traceback
 from datetime import datetime, timedelta, timezone
@@ -52,13 +53,13 @@ from pydantic import BaseModel
 
 from app.core.auth import require_admin, require_super_admin
 from app.core.config import ADMIN_SETUP_CODE
-from app.core.supabase_client import supabase
+from app.core.supabase_client import supabase, supabase_admin
 from app.models.auth import (
     AdminCodeResponse,
     AdminSetupRequest,
     AdminSetupResponse,
+    ChangePasswordRequest,
     GenerateAdminCodeRequest,
-    InvitationResponse,
     InviteRequest,
     LoginRequest,
     LoginResponse,
@@ -140,7 +141,7 @@ def logout():
 def me(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     token = credentials.credentials
     try:
-        user_resp = supabase.auth.get_user(token)
+        user_resp = supabase_admin.auth.get_user(token)
         user = user_resp.user
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -216,7 +217,7 @@ def admin_setup(payload: AdminSetupRequest, request: Request):
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid admin code")
 
             try:
-                auth_resp = supabase.auth.admin.create_user(
+                auth_resp = supabase_admin.auth.admin.create_user(
                     AdminUserAttributes(
                         email=payload.email,
                         password=payload.password,
@@ -234,18 +235,19 @@ def admin_setup(payload: AdminSetupRequest, request: Request):
             if not user:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create auth user")
 
-            # Trigger auto-creates profile with role='rep'; correct it here
             try:
-                supabase.table("profiles").update({
+                supabase.table("profiles").insert({
+                    "id": str(user.id),
+                    "email": payload.email,
+                    "full_name": payload.full_name,
                     "role": "super_admin",
                     "account_status": "active",
-                    "full_name": payload.full_name,
-                }).eq("id", user.id).execute()
-                print(f"Profile updated successfully")
+                }).execute()
+                print(f"Profile inserted successfully for {user.id}")
             except Exception as e:
                 print(f"FULL PROFILE ERROR: {type(e).__name__}: {str(e)}")
                 print(f"TRACEBACK: {traceback.format_exc()}")
-                raise HTTPException(status_code=500, detail=f"Profile update failed: {type(e).__name__}: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Profile insert failed: {type(e).__name__}: {str(e)}")
 
             supabase.table("admin_log").insert({
                 "event": "super_admin_created",
@@ -279,7 +281,7 @@ def admin_setup(payload: AdminSetupRequest, request: Request):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin code has expired")
 
         try:
-            auth_resp = supabase.auth.admin.create_user(
+            auth_resp = supabase_admin.auth.admin.create_user(
                 AdminUserAttributes(
                     email=payload.email,
                     password=payload.password,
@@ -297,18 +299,19 @@ def admin_setup(payload: AdminSetupRequest, request: Request):
         if not user:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create auth user")
 
-        # Trigger auto-creates profile with role='rep'; correct it here
         try:
-            supabase.table("profiles").update({
+            supabase.table("profiles").insert({
+                "id": str(user.id),
+                "email": payload.email,
+                "full_name": payload.full_name,
                 "role": "admin",
                 "account_status": "active",
-                "full_name": payload.full_name,
-            }).eq("id", user.id).execute()
-            print(f"Profile updated successfully")
+            }).execute()
+            print(f"Profile inserted successfully for {user.id}")
         except Exception as e:
             print(f"FULL PROFILE ERROR: {type(e).__name__}: {str(e)}")
             print(f"TRACEBACK: {traceback.format_exc()}")
-            raise HTTPException(status_code=500, detail=f"Profile update failed: {type(e).__name__}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Profile insert failed: {type(e).__name__}: {str(e)}")
 
         now_iso = datetime.now(timezone.utc).isoformat()
         supabase.table("admin_codes").update({
@@ -421,7 +424,7 @@ def toggle_admin_setup(
 VALID_TIERS = {"distributor", "agent", "master_agent"}
 
 
-@router.post("/invite", response_model=InvitationResponse, status_code=201)
+@router.post("/invite", status_code=201)
 def invite_user(
     payload: InviteRequest,
     current_user: dict = Depends(require_admin),
@@ -443,18 +446,11 @@ def invite_user(
         if existing_resp.data and len(existing_resp.data) > 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
 
-        # Check for a pending invitation
-        pending_resp = (
-            supabase.table("invitations")
-            .select("id")
-            .eq("email", payload.email)
-            .eq("status", "pending")
-            .execute()
-        )
-        if pending_resp.data and len(pending_resp.data) > 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation already pending for this email")
+        # Generate temporary password
+        chars = string.ascii_letters + string.digits + "!@#$%"
+        temp_password = "".join(secrets.choice(chars) for _ in range(12))
 
-        # Save invitation record
+        # Save invitation record first
         now_iso = datetime.now(timezone.utc).isoformat()
         insert_resp = (
             supabase.table("invitations")
@@ -468,33 +464,105 @@ def invite_user(
             .execute()
         )
         if not insert_resp.data or len(insert_resp.data) == 0:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create invitation")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create invitation record")
 
         invitation = insert_resp.data[0]
 
-        # Send invitation email via Supabase
+        # Create auth user
+        print(f"DEBUG: About to create user with email: {payload.email}")
+        print(f"DEBUG: Using supabase URL: {supabase.supabase_url}")
         try:
-            supabase.auth.admin.invite_user_by_email(payload.email)
+            auth_resp = supabase_admin.auth.admin.create_user(
+                AdminUserAttributes(
+                    email=payload.email,
+                    password=temp_password,
+                    email_confirm=True,
+                    user_metadata={"full_name": payload.full_name, "role": "rep"},
+                )
+            )
+            print(f"DEBUG: User created successfully: {auth_resp.user.id}")
         except Exception as e:
+            print(f"DEBUG FULL ERROR: {type(e).__name__}: {e}")
+            print(f"DEBUG TRACEBACK: {traceback.format_exc()}")
+            # Roll back invitation record
+            supabase.table("invitations").delete().eq("id", invitation["id"]).execute()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Invitation saved but email could not be sent: {str(e)}",
+                detail=f"Failed to create user account: {type(e).__name__}: {str(e)}",
             )
 
-        return InvitationResponse(
-            id=invitation["id"],
-            email=invitation["email"],
-            tier=invitation["tier"],
-            status=invitation["status"],
-            invited_by=invitation["invited_by"],
-            created_at=invitation["created_at"],
-            accepted_at=invitation.get("accepted_at"),
-        )
+        # Insert profile manually (trigger is disabled)
+        try:
+            supabase.table("profiles").insert({
+                "id": str(auth_resp.user.id),
+                "email": payload.email,
+                "full_name": payload.full_name,
+                "role": "rep",
+                "tier": payload.tier,
+                "account_status": "active",
+                "invited_by": current_user["id"],
+            }).execute()
+        except Exception as profile_error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"User created but profile insert failed: {str(profile_error)}",
+            )
+
+        # Mark invitation as accepted
+        supabase.table("invitations").update({"status": "accepted"}).eq("id", invitation["id"]).execute()
+
+        return {
+            "message": "Rep account created successfully",
+            "email": payload.email,
+            "full_name": payload.full_name,
+            "tier": payload.tier,
+            "temporary_password": temp_password,
+            "note": "Share these credentials with the rep. They can change their password after logging in.",
+        }
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# POST /api/auth/change-password
+# ---------------------------------------------------------------------------
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+):
+    token = credentials.credentials
+
+    try:
+        user_resp = supabase_admin.auth.get_user(token)
+        user = user_resp.user
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    # Verify current password
+    try:
+        supabase.auth.sign_in_with_password({"email": user.email, "password": payload.current_password})
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    # Update to new password
+    try:
+        supabase_admin.auth.admin.update_user_by_id(
+            user.id,
+            AdminUserAttributes(password=payload.new_password),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update password: {str(e)}")
+
+    return {"message": "Password changed successfully"}
 
 
 # ---------------------------------------------------------------------------
