@@ -1,0 +1,356 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: #0A0F1C;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  background-color: #0A0F1C;
+  border-right: 1px solid #1E293B;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  overflow: hidden;
+}
+
+.sidebar.collapsed {
+  width: 64px;
+  min-width: 64px;
+}
+
+/* Logo */
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 16px;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.sidebar-logo-text {
+  font-weight: 800;
+  font-size: 20px;
+  color: #F8FAFC;
+  white-space: nowrap;
+}
+
+.sidebar-logo-text .logo-x {
+  color: #06B6D4;
+}
+
+.sidebar-logo .sidebar-collapse-btn {
+  display: flex;
+}
+
+.sidebar-collapse-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.sidebar-collapse-btn:hover {
+  color: #94A3B8;
+}
+
+/* Nav */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  text-decoration: none;
+  color: #94A3B8;
+  background-color: transparent;
+  border-left: 3px solid transparent;
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+}
+
+.nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.nav-item.active {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3B82F6;
+  border-left: 3px solid #3B82F6;
+  font-weight: 600;
+}
+
+.nav-item.active:hover {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+
+.nav-label {
+  display: inline;
+}
+
+.sidebar.collapsed .nav-label {
+  display: none;
+}
+
+/* Admin divider */
+.nav-divider {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid #1E293B;
+}
+
+.nav-section-label {
+  padding: 4px 16px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .nav-section-label {
+  display: none;
+}
+
+/* User section */
+.sidebar-user {
+  border-top: 1px solid #1E293B;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .sidebar-user {
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #3B82F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.user-info {
+  overflow: hidden;
+}
+
+.sidebar.collapsed .user-info {
+  display: none;
+}
+
+.user-name {
+  color: #F8FAFC;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #3B82F6;
+  background-color: rgba(59, 130, 246, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+/* ── Main column ── */
+.layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Header */
+.layout-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 64px;
+  background-color: rgba(10, 15, 28, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #1E293B;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+
+.header-title {
+  color: #F8FAFC;
+  font-weight: 700;
+  font-size: 18px;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Bell */
+.header-bell-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  color: #94A3B8;
+  display: flex;
+  align-items: center;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.header-bell-btn:hover {
+  color: #F8FAFC;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  background-color: #EF4444;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Avatar dropdown */
+.header-avatar-wrapper {
+  position: relative;
+}
+
+.header-avatar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.header-avatar-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.header-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #3B82F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background-color: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  z-index: 200;
+}
+
+.dropdown-user-info {
+  padding: 10px 14px;
+  border-bottom: 1px solid #1E293B;
+}
+
+.dropdown-user-name {
+  color: #F8FAFC;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dropdown-user-email {
+  color: #64748B;
+  font-size: 11px;
+}
+
+.dropdown-logout-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #EF4444;
+  font-size: 13px;
+  text-align: left;
+}
+
+.dropdown-logout-btn:hover {
+  background-color: rgba(239, 68, 68, 0.08);
+}
+
+/* Content */
+.layout-content {
+  flex: 1;
+  overflow-y: auto;
+}
