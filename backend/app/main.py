@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import FRONTEND_URL
-from app.routers import auth
+from app.routers import auth_router, inventory_router
 
 app = FastAPI(title="ElixirX API")
 
@@ -13,7 +13,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
+app.include_router(auth_router.router)
+app.include_router(inventory_router.router)
 
 
 @app.get("/api/health")

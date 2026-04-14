@@ -54,7 +54,7 @@ from pydantic import BaseModel
 from app.core.auth import require_admin, require_super_admin
 from app.core.config import ADMIN_SETUP_CODE
 from app.core.supabase_client import supabase, supabase_admin
-from app.models.auth import (
+from app.models.auth_models import (
     AdminCodeResponse,
     AdminSetupRequest,
     AdminSetupResponse,
