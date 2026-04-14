@@ -1,0 +1,35 @@
+.inventory-page {
+  padding: 24px;
+}
+
+.inventory-count {
+  margin-top: 12px;
+  color: #64748B;
+  font-size: 12px;
+}
+
+.inventory-error {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inventory-error-text {
+  color: #EF4444;
+  font-size: 14px;
+}
+
+.inventory-error-retry {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #3B82F6;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+.inventory-error-retry:hover {
+  color: #93C5FD;
+}

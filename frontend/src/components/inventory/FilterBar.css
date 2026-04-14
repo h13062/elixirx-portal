@@ -1,0 +1,76 @@
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+/* ── Tab groups ── */
+.filter-status-tabs,
+.filter-type-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Individual tab button ── */
+.filter-tab {
+  background: none;
+  border: 1px solid #1E293B;
+  color: #64748B;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.filter-tab:hover {
+  border-color: #334155;
+  color: #94A3B8;
+}
+
+/* Active states */
+.filter-tab.active-status {
+  border-color: #3B82F6;
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3B82F6;
+}
+
+.filter-tab.active-type {
+  border-color: #06B6D4;
+  background-color: rgba(6, 182, 212, 0.12);
+  color: #06B6D4;
+}
+
+/* ── Vertical divider between status and type groups ── */
+.filter-divider {
+  width: 1px;
+  height: 20px;
+  background-color: #1E293B;
+  flex-shrink: 0;
+}
+
+/* ── Register Machine button ── */
+.filter-register-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  background-color: #3B82F6;
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.filter-register-btn:hover {
+  background-color: #2563EB;
+}

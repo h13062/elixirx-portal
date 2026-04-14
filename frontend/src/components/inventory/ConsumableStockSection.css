@@ -1,0 +1,105 @@
+.stock-section {
+  margin-top: 28px;
+}
+
+.stock-section-title {
+  color: #64748B;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 12px 0;
+}
+
+/* ── Cards row ── */
+.stock-cards {
+  display: flex;
+  gap: 12px;
+}
+
+/* ── Single card ── */
+.stock-card {
+  flex: 1;
+  background-color: #111827;
+  border: 1px solid #1E293B;
+  border-left-width: 4px;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.stock-card.accent-blue   { border-left-color: #3B82F6; }
+.stock-card.accent-cyan   { border-left-color: #06B6D4; }
+.stock-card.accent-violet { border-left-color: #8B5CF6; }
+
+.stock-card-name {
+  margin: 0 0 4px 0;
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stock-card-qty {
+  margin: 0 0 4px 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: #F8FAFC;
+  line-height: 1;
+}
+
+.stock-card-meta {
+  margin: 0;
+  color: #64748B;
+  font-size: 11px;
+}
+
+.stock-card-update-btn {
+  display: block;
+  margin-top: 12px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #64748B;
+  font-size: 11px;
+  transition: color 0.15s;
+}
+
+.stock-card-update-btn:hover {
+  color: #94A3B8;
+}
+
+/* ── Empty state ── */
+.stock-empty {
+  color: #64748B;
+  font-size: 14px;
+}
+
+/* ── Loading skeleton ── */
+.stock-card-skeleton {
+  flex: 1;
+  background-color: #111827;
+  border: 1px solid #1E293B;
+  border-left: 4px solid #334155;
+  border-radius: 12px;
+  padding: 16px 20px;
+  animation: stock-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line {
+  background-color: #1E293B;
+  border-radius: 4px;
+}
+
+.skeleton-line.h-sm   { height: 12px; }
+.skeleton-line.h-lg   { height: 32px; }
+.skeleton-line.w-short { width: 80px;  margin-bottom: 12px; }
+.skeleton-line.w-mid  { width: 48px;  margin-bottom: 8px;  }
+.skeleton-line.w-long { width: 112px; }
+
+@keyframes stock-pulse {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.4; }
+}
