@@ -25,6 +25,7 @@ class MachineResponse(BaseModel):
     serial_number: str
     product_id: str
     product_name: Optional[str] = None
+    product_sku: Optional[str] = None
     machine_type: Optional[str] = None
     batch_number: str
     manufacture_date: date

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -15,6 +16,53 @@ from app.models.inventory_models import (
 router = APIRouter(prefix="/api", tags=["inventory"])
 
 
+# ---------------------------------------------------------------------------
+# Identifier helpers
+# ---------------------------------------------------------------------------
+
+def is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except ValueError:
+        return False
+
+
+def lookup_product(identifier: str):
+    """Find a product by UUID, SKU, or name (case-insensitive). Returns row dict or None."""
+    if is_uuid(identifier):
+        result = supabase_admin.table("products").select("*").eq("id", identifier).execute()
+    else:
+        # Try SKU first (exact match), then name (case-insensitive)
+        result = supabase_admin.table("products").select("*").eq("sku", identifier).execute()
+        if not result.data:
+            result = supabase_admin.table("products").select("*").ilike("name", identifier).execute()
+    return result.data[0] if result.data else None
+
+
+def lookup_machine(identifier: str):
+    """Find a machine by UUID or serial_number. Returns row dict or None."""
+    if is_uuid(identifier):
+        result = (
+            supabase_admin.table("machines")
+            .select("*, products(name, sku)")
+            .eq("id", identifier)
+            .execute()
+        )
+    else:
+        result = (
+            supabase_admin.table("machines")
+            .select("*, products(name, sku)")
+            .eq("serial_number", identifier)
+            .execute()
+        )
+    return result.data[0] if result.data else None
+
+
+# ---------------------------------------------------------------------------
+# Internal builders
+# ---------------------------------------------------------------------------
+
 def _derive_machine_type(product_name: str) -> str | None:
     if product_name.upper().startswith("RX"):
         return "RX"
@@ -26,12 +74,14 @@ def _derive_machine_type(product_name: str) -> str | None:
 def _build_machine_response(row: dict) -> MachineResponse:
     product = row.get("products") or {}
     product_name = product.get("name") if isinstance(product, dict) else None
+    product_sku = product.get("sku") if isinstance(product, dict) else None
     machine_type = _derive_machine_type(product_name) if product_name else None
     return MachineResponse(
         id=row["id"],
         serial_number=row["serial_number"],
         product_id=row["product_id"],
         product_name=product_name,
+        product_sku=product_sku,
         machine_type=machine_type,
         batch_number=row["batch_number"],
         manufacture_date=row["manufacture_date"],
@@ -40,6 +90,18 @@ def _build_machine_response(row: dict) -> MachineResponse:
         reservation_expires_at=row.get("reservation_expires_at"),
         registered_by=row["registered_by"],
         created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _build_consumable_stock_response(row: dict) -> ConsumableStockResponse:
+    product = row.get("products") or {}
+    return ConsumableStockResponse(
+        product_id=row["product_id"],
+        product_name=product.get("name", ""),
+        product_sku=product.get("sku"),
+        default_price=product.get("default_price", 0.0),
+        quantity=row["quantity"],
         updated_at=row["updated_at"],
     )
 
@@ -101,7 +163,7 @@ def list_machines(
     try:
         query = (
             supabase_admin.table("machines")
-            .select("*, products(name)")
+            .select("*, products(name, sku)")
             .order("created_at", desc=True)
         )
         if machine_status:
@@ -129,21 +191,16 @@ def list_machines(
 
 
 # ---------------------------------------------------------------------------
-# GET /api/machines/{machine_id}
+# GET /api/machines/{machine_id}  — accepts UUID or serial_number
 # ---------------------------------------------------------------------------
 
 @router.get("/machines/{machine_id}", response_model=MachineResponse)
 def get_machine(machine_id: str, current_user: dict = Depends(get_current_user)):
     try:
-        resp = (
-            supabase_admin.table("machines")
-            .select("*, products(name)")
-            .eq("id", machine_id)
-            .execute()
-        )
-        if not resp.data or len(resp.data) == 0:
+        row = lookup_machine(machine_id)
+        if not row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Machine not found")
-        return _build_machine_response(resp.data[0])
+        return _build_machine_response(row)
     except HTTPException:
         raise
     except Exception as e:
@@ -154,7 +211,7 @@ def get_machine(machine_id: str, current_user: dict = Depends(get_current_user))
 
 
 # ---------------------------------------------------------------------------
-# POST /api/machines  (admin only)
+# POST /api/machines  (admin only) — product_id accepts UUID, SKU, or name
 # ---------------------------------------------------------------------------
 
 @router.post("/machines", response_model=MachineResponse, status_code=201)
@@ -176,31 +233,28 @@ def create_machine(
                 detail="Serial number already exists",
             )
 
-        # Validate product exists and is serialized
-        product_resp = (
-            supabase_admin.table("products")
-            .select("id, is_serialized")
-            .eq("id", payload.product_id)
-            .execute()
-        )
-        if not product_resp.data or len(product_resp.data) == 0:
+        # Resolve product by UUID, SKU, or name
+        product = lookup_product(payload.product_id)
+        if not product:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Product not found",
+                detail=f"Product not found: {payload.product_id}",
             )
-        if not product_resp.data[0].get("is_serialized"):
+        if not product.get("is_serialized"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Product is not a serialized product",
             )
 
-        # Insert machine
+        product_uuid = product["id"]
+
+        # Insert machine using the resolved UUID
         now_iso = datetime.now(timezone.utc).isoformat()
         insert_resp = (
             supabase_admin.table("machines")
             .insert({
                 "serial_number": payload.serial_number,
-                "product_id": payload.product_id,
+                "product_id": product_uuid,
                 "batch_number": payload.batch_number,
                 "manufacture_date": payload.manufacture_date.isoformat(),
                 "status": "available",
@@ -221,7 +275,7 @@ def create_machine(
         # Fetch with product join to build full response
         fetch_resp = (
             supabase_admin.table("machines")
-            .select("*, products(name)")
+            .select("*, products(name, sku)")
             .eq("id", machine_id)
             .execute()
         )
@@ -254,19 +308,7 @@ def list_consumable_stock(current_user: dict = Depends(get_current_user)):
             .order("products(name)")
             .execute()
         )
-        rows = resp.data or []
-        result = []
-        for row in rows:
-            product = row.get("products") or {}
-            result.append(ConsumableStockResponse(
-                product_id=row["product_id"],
-                product_name=product.get("name", ""),
-                product_sku=product.get("sku"),
-                default_price=product.get("default_price", 0.0),
-                quantity=row["quantity"],
-                updated_at=row["updated_at"],
-            ))
-        return result
+        return [_build_consumable_stock_response(row) for row in (resp.data or [])]
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -275,7 +317,37 @@ def list_consumable_stock(current_user: dict = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
-# PUT /api/consumable-stock/{product_id}  (admin only)
+# GET /api/consumable-stock/{product_id}  — accepts UUID, SKU, or name
+# ---------------------------------------------------------------------------
+
+@router.get("/consumable-stock/{product_id}", response_model=ConsumableStockResponse)
+def get_consumable_stock(product_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        product = lookup_product(product_id)
+        if not product:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product not found: {product_id}")
+
+        product_uuid = product["id"]
+        resp = (
+            supabase_admin.table("consumable_stock")
+            .select("product_id, quantity, updated_at, products(name, sku, default_price)")
+            .eq("product_id", product_uuid)
+            .execute()
+        )
+        if not resp.data or len(resp.data) == 0:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found in consumable stock")
+        return _build_consumable_stock_response(resp.data[0])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch consumable stock: {str(e)}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/consumable-stock/{product_id}  (admin only) — accepts UUID, SKU, or name
 # ---------------------------------------------------------------------------
 
 @router.put("/consumable-stock/{product_id}", response_model=ConsumableStockResponse)
@@ -291,11 +363,26 @@ def update_consumable_stock(
         )
 
     try:
-        # Fetch existing stock row
+        # Resolve product by UUID, SKU, or name
+        product = lookup_product(product_id)
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Product not found: {product_id}",
+            )
+        if product.get("category") != "consumable":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This product is not a consumable",
+            )
+
+        product_uuid = product["id"]
+
+        # Verify the consumable_stock row exists
         existing_resp = (
             supabase_admin.table("consumable_stock")
-            .select("product_id, quantity, updated_at, products(name, sku, default_price)")
-            .eq("product_id", product_id)
+            .select("product_id")
+            .eq("product_id", product_uuid)
             .execute()
         )
         if not existing_resp.data or len(existing_resp.data) == 0:
@@ -303,9 +390,6 @@ def update_consumable_stock(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Product not found in consumable stock",
             )
-
-        old_row = existing_resp.data[0]
-        old_quantity = old_row["quantity"]
 
         now_iso = datetime.now(timezone.utc).isoformat()
         update_resp = (
@@ -315,7 +399,7 @@ def update_consumable_stock(
                 "updated_by": current_user["id"],
                 "updated_at": now_iso,
             })
-            .eq("product_id", product_id)
+            .eq("product_id", product_uuid)
             .execute()
         )
         if not update_resp.data or len(update_resp.data) == 0:
@@ -337,7 +421,7 @@ def update_consumable_stock(
         refreshed_resp = (
             supabase_admin.table("consumable_stock")
             .select("product_id, quantity, updated_at, products(name, sku, default_price)")
-            .eq("product_id", product_id)
+            .eq("product_id", product_uuid)
             .execute()
         )
         if not refreshed_resp.data or len(refreshed_resp.data) == 0:
@@ -345,17 +429,7 @@ def update_consumable_stock(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Stock updated but could not be retrieved",
             )
-
-        row = refreshed_resp.data[0]
-        product = row.get("products") or {}
-        return ConsumableStockResponse(
-            product_id=row["product_id"],
-            product_name=product.get("name", ""),
-            product_sku=product.get("sku"),
-            default_price=product.get("default_price", 0.0),
-            quantity=row["quantity"],
-            updated_at=row["updated_at"],
-        )
+        return _build_consumable_stock_response(refreshed_resp.data[0])
 
     except HTTPException:
         raise
