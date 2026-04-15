@@ -16,8 +16,11 @@ import {
   ChevronRight,
   Bell,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { useTheme } from '../context/ThemeContext'
 import './Layout.css'
 
 const ROUTE_TITLES: Record<string, string> = {
@@ -60,6 +63,7 @@ function getInitials(name: string) {
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -129,6 +133,16 @@ export default function Layout({ children }: { children: ReactNode }) {
             </>
           )}
         </nav>
+
+        {/* Theme toggle */}
+        <div className="sidebar-theme-toggle">
+          <button className="theme-toggle-btn" onClick={toggleTheme} aria-label="Toggle theme">
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            <span className="theme-toggle-label">
+              {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            </span>
+          </button>
+        </div>
 
         {/* User */}
         <div className="sidebar-user">
