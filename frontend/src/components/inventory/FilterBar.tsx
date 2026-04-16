@@ -8,6 +8,7 @@ interface Props {
   isAdmin: boolean
   onStatusChange: (s: StatusFilter) => void
   onTypeChange: (t: TypeFilter) => void
+  onRegisterClick?: () => void
 }
 
 const STATUS_TABS: { value: StatusFilter; label: string }[] = [
@@ -33,6 +34,7 @@ export default function FilterBar({
   isAdmin,
   onStatusChange,
   onTypeChange,
+  onRegisterClick,
 }: Props) {
   return (
     <div className="filter-bar">
@@ -67,7 +69,7 @@ export default function FilterBar({
 
       {/* Register Machine — admin only */}
       {isAdmin && (
-        <button className="filter-register-btn">
+        <button className="filter-register-btn" onClick={onRegisterClick}>
           + Register Machine
         </button>
       )}

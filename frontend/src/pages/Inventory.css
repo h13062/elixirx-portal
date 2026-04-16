@@ -2,6 +2,233 @@
   padding: 24px;
 }
 
+/* ── Register Machine Form ── */
+@keyframes register-form-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.register-form-container {
+  margin-top: 16px;
+  padding: 20px 24px;
+  background: var(--bg-card);
+  border: 2px solid #3B82F6;
+  border-radius: 12px;
+  animation: register-form-in 0.2s ease;
+}
+
+.register-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.register-form-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.register-form-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.register-form-close:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.light .register-form-close:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Grid */
+.register-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .register-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Fields */
+.register-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.register-field-full {
+  grid-column: 1 / -1;
+}
+
+.register-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.register-label-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
+.register-input {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.register-input:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.register-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.register-input-mono {
+  font-family: ui-monospace, monospace;
+}
+
+.register-textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.input-error {
+  border-color: #EF4444 !important;
+}
+
+.input-error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.register-field-error {
+  font-size: 11px;
+  color: #EF4444;
+}
+
+/* Submit error */
+.register-submit-error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #EF4444;
+}
+
+/* Actions */
+.register-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.register-btn-cancel {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.register-btn-cancel:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.light .register-btn-cancel:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.register-btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.register-btn-submit {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  background: #3B82F6;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background-color 0.15s;
+}
+
+.register-btn-submit:hover:not(:disabled) {
+  background-color: #2563EB;
+}
+
+.register-btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.register-spinner {
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── Toast ── */
+.inventory-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #fff;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: register-form-in 0.2s ease;
+}
+
+.inventory-toast-success {
+  background-color: #10B981;
+}
+
+.inventory-toast-error {
+  background-color: #EF4444;
+}
+
 .inventory-count {
   margin-top: 12px;
   color: #64748B;
