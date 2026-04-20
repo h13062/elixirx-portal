@@ -1,7 +1,7 @@
 .machine-table-wrap {
   margin-top: 12px;
   border-radius: 12px;
-  border: 1px solid #1E293B;
+  border: 1px solid var(--border-color);
   overflow: hidden;
 }
 
@@ -14,39 +14,39 @@
 .machine-table th {
   padding: 10px 12px;
   text-align: left;
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 600;
-  border-bottom: 1px solid #1E293B;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .machine-table td {
   padding: 11px 12px;
-  border-bottom: 1px solid #1E293B;
+  border-bottom: 1px solid var(--border-color);
 }
 
 /* ── Rows ── */
 .machine-row:nth-child(even) {
-  background-color: rgba(255, 255, 255, 0.015);
+  background-color: var(--row-alt);
 }
 
 .machine-row:hover {
-  background-color: rgba(59, 130, 246, 0.04);
+  background-color: var(--row-hover);
   transition: background-color 0.15s;
 }
 
 /* ── Cell styles ── */
 .machine-serial {
   font-family: 'Courier New', Courier, monospace;
-  color: #F8FAFC;
+  color: var(--text-primary);
   font-weight: 500;
   font-size: 14px;
 }
 
 .machine-muted {
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -109,14 +109,14 @@
 .machine-empty {
   padding: 64px 12px;
   text-align: center;
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 /* ── Loading skeleton ── */
 .skeleton-cell {
   height: 14px;
-  background-color: #1E293B;
+  background-color: var(--bg-card);
   border-radius: 4px;
   animation: table-pulse 1.5s ease-in-out infinite;
 }

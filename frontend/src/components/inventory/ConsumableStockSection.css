@@ -3,7 +3,7 @@
 }
 
 .stock-section-title {
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
@@ -20,8 +20,8 @@
 /* ── Single card ── */
 .stock-card {
   flex: 1;
-  background-color: #111827;
-  border: 1px solid #1E293B;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
   border-left-width: 4px;
   border-radius: 12px;
   padding: 16px 20px;
@@ -33,7 +33,7 @@
 
 .stock-card-name {
   margin: 0 0 4px 0;
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -45,13 +45,13 @@
   font-family: 'Courier New', Courier, monospace;
   font-size: 28px;
   font-weight: 700;
-  color: #F8FAFC;
+  color: var(--text-primary);
   line-height: 1;
 }
 
 .stock-card-meta {
   margin: 0;
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
@@ -62,34 +62,34 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 11px;
   transition: color 0.15s;
 }
 
 .stock-card-update-btn:hover {
-  color: #94A3B8;
+  color: var(--text-muted);
 }
 
 /* ── Empty state ── */
 .stock-empty {
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 /* ── Loading skeleton ── */
 .stock-card-skeleton {
   flex: 1;
-  background-color: #111827;
-  border: 1px solid #1E293B;
-  border-left: 4px solid #334155;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--border-color);
   border-radius: 12px;
   padding: 16px 20px;
   animation: stock-pulse 1.5s ease-in-out infinite;
 }
 
 .skeleton-line {
-  background-color: #1E293B;
+  background-color: var(--bg-card);
   border-radius: 4px;
 }
 

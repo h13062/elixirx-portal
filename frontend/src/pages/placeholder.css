@@ -1,13 +1,13 @@
 .placeholder-page {
   min-height: calc(100vh - 64px);
-  background-color: #0A0F1C;
+  background-color: var(--bg-primary);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .placeholder-text {
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 18px;
   font-weight: 500;
 }

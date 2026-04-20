@@ -9,6 +9,10 @@
   --text-secondary: #64748B;
   --text-muted: #475569;
   --bg-header: rgba(17, 24, 39, 0.85);
+  --row-alt: rgba(255, 255, 255, 0.015);
+  --row-hover: rgba(59, 130, 246, 0.04);
+  --input-bg: #111827;
+  --scrollbar-thumb: #1E293B;
 }
 
 .light {
@@ -20,4 +24,20 @@
   --text-secondary: #475569;
   --text-muted: #94A3B8;
   --bg-header: rgba(255, 255, 255, 0.85);
+  --row-alt: rgba(0, 0, 0, 0.03);
+  --row-hover: rgba(0, 0, 0, 0.04);
+  --input-bg: #FFFFFF;
+  --scrollbar-thumb: #CBD5E1;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+/* Global input/select/textarea theming */
+input, select, textarea {
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border-color: var(--border-color);
 }

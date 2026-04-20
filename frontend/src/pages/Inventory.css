@@ -231,7 +231,7 @@
 
 .inventory-count {
   margin-top: 12px;
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 

@@ -3,13 +3,13 @@
 }
 
 .dashboard-welcome {
-  color: #F8FAFC;
+  color: var(--text-primary);
   font-size: 24px;
   font-weight: 700;
   margin-bottom: 8px;
 }
 
 .dashboard-subtitle {
-  color: #64748B;
+  color: var(--text-secondary);
   font-size: 15px;
 }

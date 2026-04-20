@@ -18,8 +18,8 @@
 /* ── Individual tab button ── */
 .filter-tab {
   background: none;
-  border: 1px solid #1E293B;
-  color: #64748B;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 6px 14px;
   border-radius: 8px;
   font-size: 11px;
@@ -30,8 +30,8 @@
 }
 
 .filter-tab:hover {
-  border-color: #334155;
-  color: #94A3B8;
+  border-color: var(--border-color);
+  color: var(--text-muted);
 }
 
 /* Active states */
@@ -51,7 +51,7 @@
 .filter-divider {
   width: 1px;
   height: 20px;
-  background-color: #1E293B;
+  background-color: var(--border-color);
   flex-shrink: 0;
 }
 
