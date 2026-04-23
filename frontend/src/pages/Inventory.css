@@ -260,3 +260,115 @@
 .inventory-error-retry:hover {
   color: #93C5FD;
 }
+
+/* ── Consumable stock: qty row + badges ── */
+.stock-qty-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 4px 0;
+}
+
+.stock-qty-row .stock-card-qty { margin: 0; }
+
+.stock-low-badge {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.stock-card-timestamp {
+  margin: 4px 0 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* ── Consumable stock: inline edit ── */
+.stock-edit-input {
+  width: 100px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 24px;
+  font-weight: 700;
+  background: var(--bg-surface);
+  border: 1px solid #3B82F6;
+  border-radius: 8px;
+  padding: 6px 10px;
+  text-align: center;
+  color: var(--text-primary);
+  outline: none;
+  appearance: none;
+  -moz-appearance: textfield;
+  margin: 0 0 4px 0;
+  box-sizing: border-box;
+}
+
+.stock-edit-input::-webkit-outer-spin-button,
+.stock-edit-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.stock-edit-input:disabled { opacity: 0.6; }
+
+.stock-edit-helper {
+  margin: 0 0 8px 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.stock-edit-error {
+  margin: 0 0 6px 0;
+  color: #EF4444;
+  font-size: 11px;
+}
+
+.stock-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.stock-edit-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  background: #10B981;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.stock-edit-save-btn:hover:not(:disabled) { background: #059669; }
+.stock-edit-save-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.stock-edit-cancel-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.stock-edit-cancel-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.05); }
+.light .stock-edit-cancel-btn:hover:not(:disabled) { background: rgba(0, 0, 0, 0.05); }
+.stock-edit-cancel-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.stock-card-update-btn--editing {
+  color: #3B82F6 !important;
+  cursor: default;
+}
+
+@keyframes stock-spin { to { transform: rotate(360deg); } }
+.stock-save-spinner { animation: stock-spin 0.7s linear infinite; }

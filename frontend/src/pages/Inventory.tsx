@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import './Inventory.css'
+import '../components/inventory/ConsumableStockSection.css'
 import { useAuth } from '../lib/auth'
 import { apiGet } from '../lib/api'
 import FilterBar from '../components/inventory/FilterBar'
 import MachineTable from '../components/inventory/MachineTable'
-import ConsumableStockSection from '../components/inventory/ConsumableStockSection'
 import type {
   Machine,
   ConsumableStock,
@@ -57,6 +57,28 @@ const MACHINE_STATUSES: StatusFilter[] = [
 ]
 
 // ---------------------------------------------------------------------------
+// Stock section helpers (module-level — no re-creation on render)
+// ---------------------------------------------------------------------------
+
+type StockAccent = 'accent-blue' | 'accent-cyan' | 'accent-violet'
+const STOCK_ACCENT_FALLBACK: StockAccent[] = ['accent-blue', 'accent-cyan', 'accent-violet']
+
+function resolveStockAccent(sku: string | null, index: number): StockAccent {
+  if (sku) {
+    const s = sku.toUpperCase()
+    if (s.startsWith('RO'))   return 'accent-blue'
+    if (s.startsWith('AC'))   return 'accent-cyan'
+    if (s.startsWith('SUPP')) return 'accent-violet'
+  }
+  return STOCK_ACCENT_FALLBACK[index % 3] ?? 'accent-blue'
+}
+
+function formatStockDate(updatedAt: string): string {
+  const date = new Date(updatedAt)
+  return `Last updated ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -84,6 +106,12 @@ export default function Inventory() {
   // Toast
   const [toast, setToast] = useState<Toast | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Stock editing
+  const [editingStockId, setEditingStockId]   = useState<string | null>(null)
+  const [editingQuantity, setEditingQuantity] = useState<number>(0)
+  const [stockSaving, setStockSaving]         = useState(false)
+  const [stockError, setStockError]           = useState<string | null>(null)
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
@@ -199,6 +227,55 @@ export default function Inventory() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     setToast({ message, type })
     toastTimerRef.current = setTimeout(() => setToast(null), 4000)
+  }
+
+  // -------------------------------------------------------------------------
+  // Stock edit handlers
+  // -------------------------------------------------------------------------
+
+  function startEditStock(productId: string, currentQty: number) {
+    setEditingStockId(productId)
+    setEditingQuantity(currentQty)
+    setStockError(null)
+  }
+
+  function cancelEditStock() {
+    setEditingStockId(null)
+    setStockError(null)
+  }
+
+  async function saveStock(productId: string) {
+    setStockSaving(true)
+    setStockError(null)
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL as string
+      const res = await fetch(`${BASE_URL}/api/consumable-stock/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({ quantity: editingQuantity }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.detail || data?.message || `Error ${res.status}`)
+      }
+      setConsumableStock(prev =>
+        prev.map(s =>
+          s.product_id === productId
+            ? { ...s, quantity: editingQuantity, updated_at: new Date().toISOString() }
+            : s,
+        ),
+      )
+      showToast(`Stock updated — ${editingQuantity} units saved`, 'success')
+      setEditingStockId(null)
+      fetchStock()
+    } catch (err) {
+      setStockError(err instanceof Error ? err.message : 'Failed to update. Try again.')
+    } finally {
+      setStockSaving(false)
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -416,7 +493,9 @@ export default function Inventory() {
 
               {/* Row 4: Notes — full width */}
               <div className="register-field register-field-full">
-                <label className="register-label">Notes <span className="register-label-optional">(optional)</span></label>
+                <label className="register-label">
+                  Notes <span className="register-label-optional">(optional)</span>
+                </label>
                 <textarea
                   className="register-input register-textarea"
                   rows={2}
@@ -482,7 +561,105 @@ export default function Inventory() {
 
       <MachineTable machines={displayMachines} loading={machinesLoading} />
 
-      <ConsumableStockSection stock={consumableStock} loading={stockLoading} />
+      {/* ── Consumable Stock Section ── */}
+      <section className="stock-section">
+        <h2 className="stock-section-title">Consumable Stock</h2>
+        <div className="stock-cards">
+          {stockLoading ? (
+            <>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="stock-card-skeleton">
+                  <div className="skeleton-line h-sm w-short" />
+                  <div className="skeleton-line h-lg w-mid" />
+                  <div className="skeleton-line h-sm w-long" />
+                </div>
+              ))}
+            </>
+          ) : consumableStock.length === 0 ? (
+            <p className="stock-empty">No consumable stock data available.</p>
+          ) : (
+            consumableStock.map((item, i) => {
+              const isEditing = editingStockId === item.product_id
+              return (
+                <div
+                  key={item.product_id}
+                  className={`stock-card ${resolveStockAccent(item.product_sku, i)}`}
+                >
+                  <p className="stock-card-name">{item.product_name}</p>
+
+                  {isEditing ? (
+                    <>
+                      <input
+                        type="number"
+                        className="no-spinner font-mono text-2xl font-bold text-center rounded-lg w-[100px] px-2.5 py-1.5 border border-[#3B82F6] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 mt-1"
+                        min={0}
+                        max={9999}
+                        value={editingQuantity}
+                        onChange={e =>
+                          setEditingQuantity(Math.min(9999, Math.max(0, Number(e.target.value))))
+                        }
+                        disabled={stockSaving}
+                      />
+                      <p className="text-[11px] text-[#64748B] mt-1">
+                        Current: {item.quantity} units
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-md bg-emerald-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => saveStock(item.product_id)}
+                          disabled={stockSaving}
+                        >
+                          {stockSaving && (
+                            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          )}
+                          Save
+                        </button>
+                        <button
+                          className="text-xs font-semibold px-3.5 py-1.5 rounded-md border border-[var(--border-color)] text-[#64748B] bg-transparent hover:bg-black/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={cancelEditStock}
+                          disabled={stockSaving}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      {stockError && (
+                        <p className="text-[11px] text-red-400 mt-1.5">{stockError}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <p className="stock-card-qty mb-0">{item.quantity}</p>
+                        {item.quantity < 10 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400">
+                            Low Stock
+                          </span>
+                        )}
+                      </div>
+                      <p className="stock-card-meta">in stock · ${item.default_price.toFixed(2)}</p>
+                      <p className="text-[11px] text-[#64748B] mt-1">
+                        {formatStockDate(item.updated_at)}
+                      </p>
+                    </>
+                  )}
+
+                  {isAdmin && (
+                    <button
+                      className={`stock-card-update-btn${isEditing ? ' text-blue-500 cursor-default' : ''}`}
+                      onClick={() => {
+                        if (!isEditing) startEditStock(item.product_id, item.quantity)
+                      }}
+                      disabled={isEditing}
+                    >
+                      {isEditing ? 'Editing…' : 'Update Stock'}
+                    </button>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </section>
 
       {/* Toast */}
       {toast && (
