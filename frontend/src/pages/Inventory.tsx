@@ -5,15 +5,17 @@ import { useAuth } from '../lib/auth'
 import { apiGet } from '../lib/api'
 import FilterBar from '../components/inventory/FilterBar'
 import MachineTable from '../components/inventory/MachineTable'
+import StockModal from '../components/inventory/StockModal'
+import { X, Loader2, Plus } from 'lucide-react'
 import type {
   Machine,
   ConsumableStock,
   Product,
+  SupplementFlavor,
   StatusFilter,
   TypeFilter,
   StatusCounts,
 } from '../components/inventory/types'
-import { X, Loader2 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,12 +41,42 @@ interface Toast {
   type: 'success' | 'error'
 }
 
+interface AddFlavorForm {
+  name: string
+  sku: string
+  description: string
+  default_price: string
+  sort_order: string
+}
+
+interface AddProductForm {
+  name: string
+  sku: string
+  description: string
+  default_price: string
+}
+
 const BLANK_FORM: FormData = {
   serial_number: '',
   product_id: '',
   batch_number: '',
   manufacture_date: '',
   notes: '',
+}
+
+const BLANK_FLAVOR_FORM: AddFlavorForm = {
+  name: '',
+  sku: '',
+  description: '',
+  default_price: '',
+  sort_order: '',
+}
+
+const BLANK_PRODUCT_FORM: AddProductForm = {
+  name: '',
+  sku: '',
+  description: '',
+  default_price: '',
 }
 
 const MACHINE_STATUSES: StatusFilter[] = [
@@ -84,13 +116,16 @@ function formatStockDate(updatedAt: string): string {
 
 export default function Inventory() {
   const { user, access_token } = useAuth()
+  const BASE_URL = import.meta.env.VITE_API_URL as string
 
   const [allMachines, setAllMachines]         = useState<Machine[]>([])
   const [consumableStock, setConsumableStock] = useState<ConsumableStock[]>([])
+  const [flavors, setFlavors]                 = useState<SupplementFlavor[]>([])
   const [statusFilter, setStatusFilter]       = useState<StatusFilter>('all')
   const [typeFilter, setTypeFilter]           = useState<TypeFilter>('all')
   const [machinesLoading, setMachinesLoading] = useState(true)
   const [stockLoading, setStockLoading]       = useState(true)
+  const [flavorsLoading, setFlavorsLoading]   = useState(true)
   const [machinesError, setMachinesError]     = useState<string | null>(null)
 
   // Register form
@@ -107,13 +142,29 @@ export default function Inventory() {
   const [toast, setToast] = useState<Toast | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Stock editing
-  const [editingStockId, setEditingStockId]   = useState<string | null>(null)
-  const [editingQuantity, setEditingQuantity] = useState<number>(0)
-  const [stockSaving, setStockSaving]         = useState(false)
-  const [stockError, setStockError]           = useState<string | null>(null)
+  // Stock management modal
+  const [modalProduct, setModalProduct] = useState<ConsumableStock | null>(null)
+  const [modalFlavor, setModalFlavor]   = useState<SupplementFlavor | null>(null)
+
+  // Add flavor modal
+  const [showAddFlavor, setShowAddFlavor]   = useState(false)
+  const [flavorForm, setFlavorForm]         = useState<AddFlavorForm>(BLANK_FLAVOR_FORM)
+  const [flavorSaving, setFlavorSaving]     = useState(false)
+  const [flavorError, setFlavorError]       = useState<string | null>(null)
+
+  // Add consumable product modal
+  const [showAddProduct, setShowAddProduct] = useState(false)
+  const [productForm, setProductForm]       = useState<AddProductForm>(BLANK_PRODUCT_FORM)
+  const [productSaving, setProductSaving]   = useState(false)
+  const [productError, setProductError]     = useState<string | null>(null)
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+
+  // Supplement Pack stock entry (used to open modal for flavor cards)
+  const supplementStock = useMemo(
+    () => consumableStock.find(s => s.product_name.toLowerCase().includes('supplement')) ?? null,
+    [consumableStock],
+  )
 
   // -------------------------------------------------------------------------
   // Data fetching
@@ -152,6 +203,19 @@ export default function Inventory() {
     }
   }, [access_token])
 
+  const fetchFlavors = useCallback(async () => {
+    if (!access_token) return
+    setFlavorsLoading(true)
+    try {
+      const data = await apiGet<SupplementFlavor[]>('/api/supplement-flavors', access_token)
+      setFlavors(data)
+    } catch {
+      // Non-critical
+    } finally {
+      setFlavorsLoading(false)
+    }
+  }, [access_token])
+
   const fetchProducts = useCallback(async () => {
     if (!access_token) return
     setProductsLoading(true)
@@ -166,18 +230,10 @@ export default function Inventory() {
     }
   }, [access_token])
 
-  useEffect(() => {
-    fetchMachines(typeFilter)
-  }, [typeFilter, fetchMachines])
-
-  useEffect(() => {
-    fetchStock()
-  }, [fetchStock])
-
-  // Fetch products on mount so the grouped dropdown is ready when the form opens
-  useEffect(() => {
-    fetchProducts()
-  }, [fetchProducts])
+  useEffect(() => { fetchMachines(typeFilter) }, [typeFilter, fetchMachines])
+  useEffect(() => { fetchStock() }, [fetchStock])
+  useEffect(() => { fetchFlavors() }, [fetchFlavors])
+  useEffect(() => { fetchProducts() }, [fetchProducts])
 
   // -------------------------------------------------------------------------
   // Derived state
@@ -202,14 +258,10 @@ export default function Inventory() {
   }, [allMachines])
 
   const displayMachines = useMemo(
-    () =>
-      statusFilter === 'all'
-        ? allMachines
-        : allMachines.filter(m => m.status === statusFilter),
+    () => statusFilter === 'all' ? allMachines : allMachines.filter(m => m.status === statusFilter),
     [allMachines, statusFilter],
   )
 
-  // Serialized products only — grouped by name prefix (matches backend _derive_machine_type).
   const rxProducts = useMemo(
     () => products.filter(p => p.is_serialized && p.name.toUpperCase().startsWith('RX')),
     [products],
@@ -230,56 +282,109 @@ export default function Inventory() {
   }
 
   // -------------------------------------------------------------------------
-  // Stock edit handlers
+  // Modal helpers
   // -------------------------------------------------------------------------
 
-  function startEditStock(productId: string, currentQty: number) {
-    setEditingStockId(productId)
-    setEditingQuantity(currentQty)
-    setStockError(null)
+  function openProductModal(item: ConsumableStock) {
+    setModalProduct(item)
+    setModalFlavor(null)
   }
 
-  function cancelEditStock() {
-    setEditingStockId(null)
-    setStockError(null)
+  function openFlavorModal(f: SupplementFlavor) {
+    if (!supplementStock) return
+    setModalProduct(supplementStock)
+    setModalFlavor(f)
   }
 
-  async function saveStock(productId: string) {
-    setStockSaving(true)
-    setStockError(null)
+  function closeModal() {
+    setModalProduct(null)
+    setModalFlavor(null)
+  }
+
+  // -------------------------------------------------------------------------
+  // Add Flavor
+  // -------------------------------------------------------------------------
+
+  async function handleAddFlavor(e: { preventDefault(): void }) {
+    e.preventDefault()
+    if (!flavorForm.name.trim()) { setFlavorError('Name is required'); return }
+    if (!flavorForm.sku.trim())  { setFlavorError('SKU is required'); return }
+
+    setFlavorSaving(true)
+    setFlavorError(null)
     try {
-      const BASE_URL = import.meta.env.VITE_API_URL as string
-      const res = await fetch(`${BASE_URL}/api/consumable-stock/${productId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${access_token}`,
-        },
-        body: JSON.stringify({ quantity: editingQuantity }),
+      const body: Record<string, unknown> = {
+        name: flavorForm.name.trim(),
+        sku:  flavorForm.sku.trim(),
+      }
+      if (flavorForm.description.trim()) body.description = flavorForm.description.trim()
+      if (flavorForm.default_price) body.default_price = Number(flavorForm.default_price)
+      if (flavorForm.sort_order) body.sort_order = Number(flavorForm.sort_order)
+
+      const res = await fetch(`${BASE_URL}/api/supplement-flavors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access_token}` },
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.detail || data?.message || `Error ${res.status}`)
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.detail || `Error ${res.status}`)
       }
-      setConsumableStock(prev =>
-        prev.map(s =>
-          s.product_id === productId
-            ? { ...s, quantity: editingQuantity, updated_at: new Date().toISOString() }
-            : s,
-        ),
-      )
-      showToast(`Stock updated — ${editingQuantity} units saved`, 'success')
-      setEditingStockId(null)
-      fetchStock()
+      setShowAddFlavor(false)
+      setFlavorForm(BLANK_FLAVOR_FORM)
+      await fetchFlavors()
+      showToast('Flavor added successfully', 'success')
     } catch (err) {
-      setStockError(err instanceof Error ? err.message : 'Failed to update. Try again.')
+      setFlavorError(err instanceof Error ? err.message : 'Failed to add flavor')
     } finally {
-      setStockSaving(false)
+      setFlavorSaving(false)
     }
   }
 
   // -------------------------------------------------------------------------
-  // Form handlers
+  // Add Consumable Product
+  // -------------------------------------------------------------------------
+
+  async function handleAddProduct(e: { preventDefault(): void }) {
+    e.preventDefault()
+    if (!productForm.name.trim())         { setProductError('Name is required'); return }
+    if (!productForm.sku.trim())          { setProductError('SKU is required'); return }
+    if (!productForm.default_price)       { setProductError('Price is required'); return }
+
+    setProductSaving(true)
+    setProductError(null)
+    try {
+      const body: Record<string, unknown> = {
+        name:          productForm.name.trim(),
+        sku:           productForm.sku.trim(),
+        category:      'consumable',
+        default_price: Number(productForm.default_price),
+        is_serialized: false,
+      }
+      if (productForm.description.trim()) body.description = productForm.description.trim()
+
+      const res = await fetch(`${BASE_URL}/api/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access_token}` },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.detail || `Error ${res.status}`)
+      }
+      setShowAddProduct(false)
+      setProductForm(BLANK_PRODUCT_FORM)
+      await Promise.all([fetchStock(), fetchProducts()])
+      showToast('Product added successfully', 'success')
+    } catch (err) {
+      setProductError(err instanceof Error ? err.message : 'Failed to add product')
+    } finally {
+      setProductSaving(false)
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Machine form handlers
   // -------------------------------------------------------------------------
 
   function handleTypeChange(type: TypeFilter) {
@@ -334,7 +439,6 @@ export default function Inventory() {
     setSubmitError(null)
 
     try {
-      const BASE_URL = import.meta.env.VITE_API_URL as string
       const selectedProduct = products.find(p => p.id === formData.product_id)
       const derivedMachineType = selectedProduct?.name.toUpperCase().startsWith('RX') ? 'RX'
         : selectedProduct?.name.toUpperCase().startsWith('RO') ? 'RO'
@@ -406,7 +510,6 @@ export default function Inventory() {
           <form onSubmit={handleSubmit} noValidate>
             <div className="register-form-grid">
 
-              {/* Row 1: Serial Number | Batch Number */}
               <div className="register-field">
                 <label className="register-label">Serial Number</label>
                 <input
@@ -437,7 +540,6 @@ export default function Inventory() {
                 )}
               </div>
 
-              {/* Row 2: Product — full width, grouped by machine type */}
               <div className="register-field register-field-full">
                 <label className="register-label">Product</label>
                 {productsError ? (
@@ -476,7 +578,6 @@ export default function Inventory() {
                 )}
               </div>
 
-              {/* Row 3: Manufacture Date */}
               <div className="register-field">
                 <label className="register-label">Manufacture Date</label>
                 <input
@@ -491,7 +592,6 @@ export default function Inventory() {
                 )}
               </div>
 
-              {/* Row 4: Notes — full width */}
               <div className="register-field register-field-full">
                 <label className="register-label">
                   Notes <span className="register-label-optional">(optional)</span>
@@ -508,12 +608,10 @@ export default function Inventory() {
 
             </div>
 
-            {/* Submit error */}
             {submitError && (
               <p className="register-submit-error">{submitError}</p>
             )}
 
-            {/* Actions */}
             <div className="register-form-actions">
               <button
                 type="button"
@@ -545,10 +643,7 @@ export default function Inventory() {
       {machinesError ? (
         <div className="inventory-error">
           <p className="inventory-error-text">{machinesError}</p>
-          <button
-            className="inventory-error-retry"
-            onClick={() => fetchMachines(typeFilter)}
-          >
+          <button className="inventory-error-retry" onClick={() => fetchMachines(typeFilter)}>
             Retry
           </button>
         </div>
@@ -563,7 +658,86 @@ export default function Inventory() {
 
       {/* ── Consumable Stock Section ── */}
       <section className="stock-section">
-        <h2 className="stock-section-title">Consumable Stock</h2>
+        <div className="stock-section-header">
+          <h2 className="stock-section-title">Consumable Stock</h2>
+          {isAdmin && (
+            <button
+              className="stock-add-product-btn"
+              onClick={() => { setShowAddProduct(true); setProductForm(BLANK_PRODUCT_FORM); setProductError(null) }}
+            >
+              <Plus size={12} />
+              Add New Consumable Product
+            </button>
+          )}
+        </div>
+
+        {/* Add Consumable Product inline form */}
+        {showAddProduct && isAdmin && (
+          <form className="stock-add-form" onSubmit={handleAddProduct} noValidate>
+            <p className="stock-add-form-title">New Consumable Product</p>
+            <div className="stock-add-form-grid">
+              <div className="stock-add-field">
+                <label className="stock-add-label">Name</label>
+                <input
+                  className="register-input"
+                  placeholder="e.g. AC Filter"
+                  value={productForm.name}
+                  onChange={e => setProductForm(f => ({ ...f, name: e.target.value }))}
+                  disabled={productSaving}
+                />
+              </div>
+              <div className="stock-add-field">
+                <label className="stock-add-label">SKU</label>
+                <input
+                  className="register-input register-input-mono"
+                  placeholder="e.g. AC-FILTER-01"
+                  value={productForm.sku}
+                  onChange={e => setProductForm(f => ({ ...f, sku: e.target.value }))}
+                  disabled={productSaving}
+                />
+              </div>
+              <div className="stock-add-field">
+                <label className="stock-add-label">Default Price ($)</label>
+                <input
+                  type="number"
+                  className="register-input"
+                  placeholder="0.00"
+                  min={0}
+                  step="0.01"
+                  value={productForm.default_price}
+                  onChange={e => setProductForm(f => ({ ...f, default_price: e.target.value }))}
+                  disabled={productSaving}
+                />
+              </div>
+              <div className="stock-add-field">
+                <label className="stock-add-label">Description <span className="register-label-optional">(opt)</span></label>
+                <input
+                  className="register-input"
+                  placeholder="Brief description…"
+                  value={productForm.description}
+                  onChange={e => setProductForm(f => ({ ...f, description: e.target.value }))}
+                  disabled={productSaving}
+                />
+              </div>
+            </div>
+            {productError && <p className="register-submit-error">{productError}</p>}
+            <div className="register-form-actions">
+              <button
+                type="button"
+                className="register-btn-cancel"
+                onClick={() => { setShowAddProduct(false); setProductError(null) }}
+                disabled={productSaving}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="register-btn-submit" disabled={productSaving}>
+                {productSaving ? <><Loader2 size={14} className="register-spinner" />Adding…</> : 'Add Product'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Stock cards */}
         <div className="stock-cards">
           {stockLoading ? (
             <>
@@ -579,79 +753,43 @@ export default function Inventory() {
             <p className="stock-empty">No consumable stock data available.</p>
           ) : (
             consumableStock.map((item, i) => {
-              const isEditing = editingStockId === item.product_id
+              const isSupp = item.product_name.toLowerCase().includes('supplement')
+              const threshold = item.min_threshold ?? 10
+              const isLow = item.quantity < threshold
               return (
                 <div
                   key={item.product_id}
-                  className={`stock-card ${resolveStockAccent(item.product_sku, i)}`}
+                  className={`stock-card ${resolveStockAccent(item.product_sku, i)} stock-card-clickable`}
+                  onClick={() => openProductModal(item)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter') openProductModal(item) }}
                 >
                   <p className="stock-card-name">{item.product_name}</p>
-
-                  {isEditing ? (
-                    <>
-                      <input
-                        type="number"
-                        className="no-spinner font-mono text-2xl font-bold text-center rounded-lg w-[100px] px-2.5 py-1.5 border border-[#3B82F6] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 mt-1"
-                        min={0}
-                        max={9999}
-                        value={editingQuantity}
-                        onChange={e =>
-                          setEditingQuantity(Math.min(9999, Math.max(0, Number(e.target.value))))
-                        }
-                        disabled={stockSaving}
-                      />
-                      <p className="text-[11px] text-[#64748B] mt-1">
-                        Current: {item.quantity} units
-                      </p>
-                      <div className="flex gap-2 mt-3">
-                        <button
-                          className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-md bg-emerald-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={() => saveStock(item.product_id)}
-                          disabled={stockSaving}
-                        >
-                          {stockSaving && (
-                            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          )}
-                          Save
-                        </button>
-                        <button
-                          className="text-xs font-semibold px-3.5 py-1.5 rounded-md border border-[var(--border-color)] text-[#64748B] bg-transparent hover:bg-black/5 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={cancelEditStock}
-                          disabled={stockSaving}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                      {stockError && (
-                        <p className="text-[11px] text-red-400 mt-1.5">{stockError}</p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <p className="stock-card-qty mb-0">{item.quantity}</p>
-                        {item.quantity < 10 && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400">
-                            Low Stock
-                          </span>
-                        )}
-                      </div>
-                      <p className="stock-card-meta">in stock · ${item.default_price.toFixed(2)}</p>
-                      <p className="text-[11px] text-[#64748B] mt-1">
-                        {formatStockDate(item.updated_at)}
-                      </p>
-                    </>
+                  {item.product_sku && (
+                    <p className="stock-card-sku">{item.product_sku}</p>
                   )}
-
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <p className="stock-card-qty mb-0">{item.quantity}</p>
+                    {isLow && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400">
+                        Low Stock
+                      </span>
+                    )}
+                  </div>
+                  <p className="stock-card-meta">
+                    in stock · ${item.default_price.toFixed(2)}
+                    {isSupp && item.batch_count > 0 && ` · ${item.batch_count} batch${item.batch_count !== 1 ? 'es' : ''}`}
+                  </p>
+                  <p className="text-[11px] text-[#64748B] mt-1">
+                    {formatStockDate(item.updated_at)}
+                  </p>
                   {isAdmin && (
                     <button
-                      className={`stock-card-update-btn${isEditing ? ' text-blue-500 cursor-default' : ''}`}
-                      onClick={() => {
-                        if (!isEditing) startEditStock(item.product_id, item.quantity)
-                      }}
-                      disabled={isEditing}
+                      className="stock-card-update-btn"
+                      onClick={e => { e.stopPropagation(); openProductModal(item) }}
                     >
-                      {isEditing ? 'Editing…' : 'Update Stock'}
+                      Manage Batches
                     </button>
                   )}
                 </div>
@@ -659,7 +797,145 @@ export default function Inventory() {
             })
           )}
         </div>
+
+        {/* Flavor cards (below Supplement Pack) */}
+        {!flavorsLoading && flavors.length > 0 && (
+          <div className="flavor-cards-row">
+            {flavors.map(f => (
+              <div
+                key={f.id}
+                className="flavor-card"
+                onClick={() => openFlavorModal(f)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter') openFlavorModal(f) }}
+              >
+                <p className="flavor-card-name">{f.name}</p>
+                {f.sku && <p className="flavor-card-sku">{f.sku}</p>}
+                <p className="flavor-card-qty">{f.total_in_stock}</p>
+                <p className="flavor-card-meta">
+                  {f.batch_count} batch{f.batch_count !== 1 ? 'es' : ''}
+                  {f.default_price != null && ` · $${f.default_price.toFixed(2)}`}
+                </p>
+              </div>
+            ))}
+
+            {/* Add Flavor card (admin only) */}
+            {isAdmin && (
+              <div
+                className="flavor-card flavor-card-add"
+                onClick={() => { setShowAddFlavor(true); setFlavorForm(BLANK_FLAVOR_FORM); setFlavorError(null) }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter') setShowAddFlavor(true) }}
+              >
+                <span className="flavor-card-add-icon">+</span>
+                <span className="flavor-card-add-label">Add Flavor</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Add Flavor modal */}
+        {showAddFlavor && isAdmin && (
+          <div className="sm-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAddFlavor(false) }}>
+            <div className="sm-container" style={{ maxWidth: 480 }}>
+              <div className="sm-header">
+                <div className="sm-header-title-row">
+                  <h2 className="sm-title">Add Supplement Flavor</h2>
+                  <button className="sm-close-btn" onClick={() => setShowAddFlavor(false)}><X size={18} /></button>
+                </div>
+              </div>
+              <form onSubmit={handleAddFlavor} noValidate>
+                <div className="stock-add-form-grid" style={{ padding: '20px 24px' }}>
+                  <div className="stock-add-field">
+                    <label className="stock-add-label">Name</label>
+                    <input
+                      className="sm-inline-input"
+                      placeholder="e.g. Berry Blast"
+                      value={flavorForm.name}
+                      onChange={e => setFlavorForm(f => ({ ...f, name: e.target.value }))}
+                      disabled={flavorSaving}
+                    />
+                  </div>
+                  <div className="stock-add-field">
+                    <label className="stock-add-label">SKU</label>
+                    <input
+                      className="sm-inline-input sm-mono"
+                      placeholder="e.g. SUPP-BERRY-01"
+                      value={flavorForm.sku}
+                      onChange={e => setFlavorForm(f => ({ ...f, sku: e.target.value }))}
+                      disabled={flavorSaving}
+                    />
+                  </div>
+                  <div className="stock-add-field">
+                    <label className="stock-add-label">Price ($) <span className="register-label-optional">(opt)</span></label>
+                    <input
+                      type="number"
+                      className="sm-inline-input"
+                      placeholder="0.00"
+                      min={0}
+                      step="0.01"
+                      value={flavorForm.default_price}
+                      onChange={e => setFlavorForm(f => ({ ...f, default_price: e.target.value }))}
+                      disabled={flavorSaving}
+                    />
+                  </div>
+                  <div className="stock-add-field">
+                    <label className="stock-add-label">Sort Order <span className="register-label-optional">(opt)</span></label>
+                    <input
+                      type="number"
+                      className="sm-inline-input"
+                      placeholder="0"
+                      min={0}
+                      value={flavorForm.sort_order}
+                      onChange={e => setFlavorForm(f => ({ ...f, sort_order: e.target.value }))}
+                      disabled={flavorSaving}
+                    />
+                  </div>
+                  <div className="stock-add-field stock-add-field-full">
+                    <label className="stock-add-label">Description <span className="register-label-optional">(opt)</span></label>
+                    <input
+                      className="sm-inline-input"
+                      placeholder="Brief description…"
+                      value={flavorForm.description}
+                      onChange={e => setFlavorForm(f => ({ ...f, description: e.target.value }))}
+                      disabled={flavorSaving}
+                    />
+                  </div>
+                </div>
+                {flavorError && <p className="register-submit-error" style={{ margin: '0 24px' }}>{flavorError}</p>}
+                <div className="sm-footer">
+                  <button
+                    type="button"
+                    className="sm-btn-close-footer"
+                    onClick={() => setShowAddFlavor(false)}
+                    disabled={flavorSaving}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="sm-btn-add" disabled={flavorSaving} style={{ marginLeft: 8 }}>
+                    {flavorSaving ? 'Adding…' : 'Add Flavor'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </section>
+
+      {/* Stock Management Modal */}
+      {modalProduct && (
+        <StockModal
+          product={modalProduct}
+          flavor={modalFlavor}
+          flavors={flavors}
+          accessToken={access_token ?? ''}
+          isAdmin={isAdmin}
+          onClose={closeModal}
+          onStockUpdated={() => { fetchStock(); fetchFlavors() }}
+        />
+      )}
 
       {/* Toast */}
       {toast && (

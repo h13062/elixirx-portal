@@ -372,3 +372,177 @@
 
 @keyframes stock-spin { to { transform: rotate(360deg); } }
 .stock-save-spinner { animation: stock-spin 0.7s linear infinite; }
+
+/* ── Stock section header ── */
+.stock-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stock-section-header .stock-section-title {
+  margin-bottom: 0;
+}
+
+.stock-add-product-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #3B82F6;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 0;
+  transition: color 0.15s;
+}
+
+.stock-add-product-btn:hover { color: #60A5FA; }
+
+/* ── Add consumable form ── */
+.stock-add-form {
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px dashed #334155;
+  border-radius: 10px;
+}
+
+.stock-add-form-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+}
+
+.stock-add-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.stock-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stock-add-field-full {
+  grid-column: 1 / -1;
+}
+
+.stock-add-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+/* ── Stock card clickable state ── */
+.stock-card-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.stock-card-clickable:hover {
+  border-color: #334155;
+}
+
+.stock-card-sku {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  color: #64748B;
+  margin: 0 0 4px;
+}
+
+/* ── Flavor cards row ── */
+.flavor-cards-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.flavor-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 16px;
+  min-width: 140px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.flavor-card:hover {
+  border-color: #334155;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.flavor-card-name {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.flavor-card-sku {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  color: #64748B;
+  margin: 0 0 6px;
+}
+
+.flavor-card-qty {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+  line-height: 1;
+}
+
+.flavor-card-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Add flavor card */
+.flavor-card-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #334155;
+  background: transparent;
+  min-height: 88px;
+  gap: 6px;
+}
+
+.flavor-card-add:hover {
+  border-color: #3B82F6;
+}
+
+.flavor-card-add-icon {
+  font-size: 22px;
+  font-weight: 300;
+  color: #64748B;
+  line-height: 1;
+}
+
+.flavor-card-add:hover .flavor-card-add-icon {
+  color: #3B82F6;
+}
+
+.flavor-card-add-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.flavor-card-add:hover .flavor-card-add-label {
+  color: #3B82F6;
+}

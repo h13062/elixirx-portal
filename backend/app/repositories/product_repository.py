@@ -33,3 +33,24 @@ class ProductRepository(BaseRepository):
             .execute()
         )
         return result.data or []
+
+    def sku_exists(self, sku: str, exclude_id: str | None = None) -> bool:
+        result = self._db.table("products").select("id").eq("sku", sku).execute()
+        if not result.data:
+            return False
+        if exclude_id:
+            return any(row["id"] != exclude_id for row in result.data)
+        return True
+
+    def create(self, data: dict) -> dict | None:
+        result = self._db.table("products").insert(data).execute()
+        return result.data[0] if result.data else None
+
+    def update(self, product_id: str, data: dict) -> dict | None:
+        result = (
+            self._db.table("products")
+            .update(data)
+            .eq("id", product_id)
+            .execute()
+        )
+        return result.data[0] if result.data else None
