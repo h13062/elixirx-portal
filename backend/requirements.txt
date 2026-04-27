@@ -7,6 +7,9 @@ pydantic
 python-multipart
 resend
 
+# PDF generation (warranty certificates)
+fpdf2
+
 # Testing
 pytest
 httpx

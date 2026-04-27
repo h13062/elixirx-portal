@@ -1,6 +1,10 @@
 """Sprint 1 — auth endpoint tests."""
 
+import pytest
+
 from conftest import unique_id
+
+pytestmark = pytest.mark.sprint1
 
 
 class TestHealthCheck:

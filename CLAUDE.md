@@ -135,17 +135,23 @@ All under `/api`, registered in `main.py` **before** `inventory_router` so stati
 - Admin: `bgh1506@gmail.com` / `Huy13062` (role: admin)
 - Rep: `minh.tran@example.com` / `Minh2026!` (role: rep, tier: agent)
 
-## Testing
+## Testing Commands
 
-- Run all tests: `cd backend && venv\Scripts\activate && pytest tests/ -v --tb=short`
-- Run one file: `pytest tests/test_machine_lifecycle.py -v`
-- Run one test: `pytest tests/test_auth.py::TestLogin::test_login_super_admin -v`
-- Stop on first failure: `pytest tests/ -v -x`
-- Convenience scripts: `backend/run_tests.bat` (CMD) or `backend/run_tests.ps1` (PowerShell)
+- Run ALL tests: `pytest tests/ -v --tb=short`
+- Run Sprint 1 only: `pytest tests/ -v -m sprint1`
+- Run Sprint 2 only: `pytest tests/ -v -m sprint2`
+- Run Sprint 3 only: `pytest tests/ -v -m sprint3`
+- Run specific file: `pytest tests/test_warranty.py -v`
+- Run specific test: `pytest tests/test_warranty.py::TestWarranty::test_create_warranty -v`
+- Stop on first failure: add `-x` flag
+- PowerShell: `.\run_tests.ps1` or `.\run_tests.ps1 -Sprint 3`
+- Batch: `run_tests.bat` or `run_tests.bat 3`
+
+Sprint markers are declared in [backend/pytest.ini](backend/pytest.ini); each test file pins its sprint via `pytestmark = pytest.mark.sprintN` so file moves don't lose the tag.
+
 - Test credentials live in [backend/tests/conftest.py](backend/tests/conftest.py) — three sessions: super_admin, admin, rep
 - Test data uses a `TEST-` / `RX-` / `LOT-` / `SKU-` prefix (with random suffix via `unique_id()`) for easy identification and cleanup
 - pytest config at [backend/pytest.ini](backend/pytest.ini) sets `pythonpath = . tests` so `from conftest import unique_id` resolves
-- 65 tests collected; Sprint 3 lifecycle tests are now active (no skips)
 - ALWAYS run tests before `git push`
 
 ## Documentation

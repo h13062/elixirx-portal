@@ -22,6 +22,8 @@ import pytest
 
 from conftest import unique_id
 
+pytestmark = pytest.mark.sprint3
+
 
 def _new_machine(client, admin_headers):
     """Module-level helper: register a fresh available machine and return its row."""

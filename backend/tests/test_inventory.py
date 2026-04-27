@@ -1,6 +1,10 @@
 """Sprint 2 — inventory endpoint tests."""
 
+import pytest
+
 from conftest import unique_id
+
+pytestmark = pytest.mark.sprint2
 
 
 class TestProducts:

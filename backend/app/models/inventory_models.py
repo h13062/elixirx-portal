@@ -269,3 +269,67 @@ class MachineStatusSummary(BaseModel):
     delivered: int = 0
     returned: int = 0
     total: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Warranty (Sprint 3 Task 3.2)
+# ---------------------------------------------------------------------------
+
+class WarrantyCreate(BaseModel):
+    machine_id: str  # UUID or serial_number
+    duration_months: Optional[int] = 12
+    start_date: Optional[date] = None
+    customer_name: Optional[str] = None
+    customer_contact: Optional[str] = None
+    force: Optional[bool] = False
+
+
+class WarrantyUpdate(BaseModel):
+    customer_name: Optional[str] = None
+    customer_contact: Optional[str] = None
+    status: Optional[str] = None
+
+
+class WarrantyExtendRequest(BaseModel):
+    additional_months: int
+    reason: str
+
+
+class WarrantyResponse(BaseModel):
+    id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    machine_type: Optional[str] = None
+    product_name: Optional[str] = None
+    batch_number: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_contact: Optional[str] = None
+    duration_months: int
+    start_date: date
+    end_date: date
+    status: str
+    extended: bool = False
+    extension_reason: Optional[str] = None
+    original_end_date: Optional[date] = None
+    set_by: Optional[str] = None
+    set_by_name: Optional[str] = None
+    days_remaining: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ExpiringMachineInfo(BaseModel):
+    warranty_id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    customer_name: Optional[str] = None
+    end_date: date
+    days_remaining: int
+
+
+class WarrantyDashboard(BaseModel):
+    active: int
+    expiring_soon: int
+    expired: int
+    total: int
+    expiring_machines: list[ExpiringMachineInfo]
