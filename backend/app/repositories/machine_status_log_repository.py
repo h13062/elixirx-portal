@@ -2,7 +2,7 @@ from app.repositories.base import BaseRepository
 
 _LOG_SELECT = (
     "id, machine_id, from_status, to_status, changed_by, reason, created_at, "
-    "profiles:changed_by(name)"
+    "profiles(full_name)"
 )
 
 

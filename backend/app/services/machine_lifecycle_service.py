@@ -175,7 +175,7 @@ class MachineLifecycleService:
     @staticmethod
     def _build_log_entry(row: dict) -> MachineStatusLogEntry:
         profile = row.get("profiles") or {}
-        changed_by_name = profile.get("name") if isinstance(profile, dict) else None
+        changed_by_name = profile.get("full_name") if isinstance(profile, dict) else None
         return MachineStatusLogEntry(
             id=row["id"],
             from_status=row.get("from_status"),
@@ -256,7 +256,7 @@ class MachineLifecycleService:
             result = (
                 supabase_admin.table("reservations")
                 .select(
-                    "id, rep_id, status, created_at, expires_at, profiles:rep_id(name)"
+                    "id, rep_id, status, created_at, expires_at, profiles(full_name)"
                 )
                 .eq("machine_id", machine_id)
                 .in_("status", ["pending", "approved"])
@@ -271,7 +271,7 @@ class MachineLifecycleService:
             return ReservationInfo(
                 id=row["id"],
                 rep_id=row.get("rep_id"),
-                rep_name=profile.get("name") if isinstance(profile, dict) else None,
+                rep_name=profile.get("full_name") if isinstance(profile, dict) else None,
                 status=row["status"],
                 created_at=row.get("created_at"),
                 expires_at=row.get("expires_at"),
