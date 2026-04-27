@@ -16,7 +16,7 @@ One markdown file per sprint:
 |------|--------|
 | [sprint-0.md](sprint-0.md) | Sprint 0 — Project setup, environment, tooling |
 | [sprint-1.md](sprint-1.md) | Sprint 1 — Auth, database schema, backend foundation |
-| [sprint-2.md](sprint-2.md) | Sprint 2 — Inventory endpoints |
+| [sprint-2.md](sprint-2.md) | Sprint 2 — Inventory module (products, machines, consumable stock, supplement flavors, batch tracking) |
 
 Add a new file (`sprint-N.md`) when a new sprint begins. Copy [TEMPLATE.md](TEMPLATE.md) as the starting point.
 
@@ -106,6 +106,46 @@ VS Code caches the PATH from the environment at the time it was opened. Tools in
 - **Fix:** Close and reopen VS Code after installing Node.js, Python, or any other CLI tool.
 - **Prevention:** Install all required tools before opening VS Code for the session.
 - **See:** Bug 0.2
+
+---
+
+### UUID vs friendly identifier — `invalid input syntax for type uuid`
+Routes that filter `.eq("id", incoming_value)` against a UUID column reject any non-UUID value (SKUs, serial numbers, names) at the Postgres layer, even when those forms are the natural way an operator references the entity.
+- **Fix:** Implement a `find_by_identifier(identifier)` method on the repository that tries UUID → SKU/serial → name (case-insensitive). Route handlers always go through this helper and use the resolved UUID downstream.
+- **Prevention:** Treat raw UUIDs as internal-only. Any path/query/body identifier exposed at the API boundary must accept the human-friendly form. Code review red flag: `.eq("id", <route param>)` against a UUID column.
+- **See:** Bug 2.1, Bug 2.2, Bug 2.3
+
+---
+
+### Simple stock vs lot-tracked stock — model regulated/perishable products with batches from day one
+Treating a consumable as a single `quantity` integer per product makes flavor variants, manufacture/expiry dates, and shipment-to-batch traceability impossible to add later without a model rewrite.
+- **Fix:** Three-table shape — `products` (catalog) → `consumable_stock` (derived aggregate: `quantity = SUM(batches.quantity)`) → `consumable_batches` (source of truth with manufacture_date, expiry_date, batch_number, shipped_date). Recalculate the aggregate after every batch mutation.
+- **Prevention:** During design, walk the entity through its full physical lifecycle (manufactured → packaged → shipped → returned → recalled → expired). Any state without a data home means the model is incomplete.
+- **See:** Bug 2.5
+
+---
+
+### Always ship full CRUD — half-CRUD becomes a permanent ops tax
+Shipping `Create + Read` and deferring `Update + Delete` pushes admins into the database to do basic edits (rename, fix typo, remove duplicate). The "later" rarely happens until the operational pain is high.
+- **Fix:** For every new resource, build all four verbs in the same PR. Decide soft-delete (entity has historical references) vs hard-delete (pure mistake-removal) up front and document it on the endpoint.
+- **Prevention:** PR review checklist item — "Does this resource have all four CRUD operations? If not, where is the ticket?" Treat partial CRUD as a known cost, not a milestone.
+- **See:** Bug 2.6, Bug 2.7
+
+---
+
+### FastAPI route ordering — static paths before path parameters
+Within a router, FastAPI matches routes in registration order. A static segment like `/foo/report` declared *after* `/foo/{id}` will be captured as `id="report"` and never reach its handler.
+- **Fix:** Declare every static path before any `{param}` path that shares the same prefix. Group statics at the top of the file with a comment marking the boundary.
+- **Prevention:** When mixing static and parameterized routes, prefer a more specific sub-prefix for the static endpoints (e.g., `/foo-reports/summary`) so collisions are impossible by construction.
+- **See:** Bug 2.8
+
+---
+
+### Buried inline edit affordances — promote to clickable card + modal
+Tiny pencil/icon buttons inside a card or row become invisible to users and don't scale when more actions need to be added. Operators bypass the UI entirely and edit data in the database.
+- **Fix:** Make the card itself clickable (with a visible hover state) and open a dedicated modal that hosts the full management surface — header, summary stats, related entity tabs, action table, settings.
+- **Prevention:** If the third action you want to add to a card doesn't fit comfortably in the existing layout, move all actions to a modal. Don't keep stacking icon buttons.
+- **See:** Bug 2.4
 
 ---
 
