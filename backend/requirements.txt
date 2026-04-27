@@ -6,3 +6,7 @@ python-dotenv
 pydantic
 python-multipart
 resend
+
+# Testing
+pytest
+httpx

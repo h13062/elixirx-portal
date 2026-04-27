@@ -71,6 +71,19 @@ All under `/api`, registered in `main.py` **before** `inventory_router` so stati
 - `GET /api/machines/{identifier}/status-history` — full log for one machine, joined to `profiles` for `changed_by_name`
 - `GET /api/machines/{identifier}/full-detail` — machine + product + last 10 status entries + warranty + active reservation + open issues. The warranty/reservation/issue lookups are best-effort: if the table doesn't exist yet (future sprint), the field is returned as `null`/`[]` instead of erroring.
 
+## Testing
+
+- Run all tests: `cd backend && venv\Scripts\activate && pytest tests/ -v --tb=short`
+- Run specific file: `pytest tests/test_auth.py -v`
+- Run specific test: `pytest tests/test_auth.py::TestLogin::test_login_super_admin -v`
+- Stop on first failure: `pytest tests/ -v -x`
+- Convenience scripts: `backend/run_tests.bat` (CMD) or `backend/run_tests.ps1` (PowerShell)
+- Test credentials live in [backend/tests/conftest.py](backend/tests/conftest.py) — three sessions: super_admin, admin, rep
+- Test data uses a `TEST-` / `RX-` / `LOT-` / `SKU-` prefix (with random suffix via `unique_id()`) for easy identification and cleanup
+- Sprint 3 lifecycle tests in [backend/tests/test_machine_lifecycle.py](backend/tests/test_machine_lifecycle.py) are skipped via `@pytest.mark.skipif(True, ...)` until Task 3.1 lands; flip the flag to enable each test as the corresponding feature ships
+- pytest config at [backend/pytest.ini](backend/pytest.ini) sets `pythonpath = . tests` so `from conftest import unique_id` resolves
+- ALWAYS run tests before `git push`
+
 ## Documentation
 
 - [docs/bug-log/](docs/bug-log/) — every notable bug with symptom, root cause, fix, prevention. Indexed by sprint.
