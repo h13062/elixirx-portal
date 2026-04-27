@@ -65,3 +65,21 @@ class MachineRepository(BaseRepository):
     def create(self, data: dict) -> dict | None:
         result = self._db.table("machines").insert(data).execute()
         return result.data[0] if result.data else None
+
+    def update_status(self, machine_id: str, new_status: str, now_iso: str) -> None:
+        (
+            self._db.table("machines")
+            .update({"status": new_status, "updated_at": now_iso})
+            .eq("id", machine_id)
+            .execute()
+        )
+
+    def count_by_status(self) -> dict[str, int]:
+        """Returns counts grouped by status."""
+        result = self._db.table("machines").select("status").execute()
+        counts: dict[str, int] = {}
+        for row in result.data or []:
+            s = row.get("status")
+            if s:
+                counts[s] = counts.get(s, 0) + 1
+        return counts

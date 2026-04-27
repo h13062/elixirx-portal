@@ -189,3 +189,83 @@ class BatchReport(BaseModel):
     summary: BatchReportSummary
     by_flavor: list[BatchReportByFlavor]
     batches: list[BatchResponse]
+
+
+# ---------------------------------------------------------------------------
+# Machine lifecycle (Sprint 3 / 6 — status transitions, history, full detail)
+# ---------------------------------------------------------------------------
+
+class MachineStatusUpdate(BaseModel):
+    new_status: str
+    reason: Optional[str] = None
+    force: Optional[bool] = False
+
+
+class MachineStatusUpdateResponse(BaseModel):
+    machine: MachineResponse
+    warranty_setup_required: bool = False
+
+
+class MachineStatusLogEntry(BaseModel):
+    id: str
+    from_status: Optional[str] = None
+    to_status: str
+    changed_by: Optional[str] = None
+    changed_by_name: Optional[str] = None
+    reason: Optional[str] = None
+    created_at: datetime
+
+
+class WarrantyInfo(BaseModel):
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    status: Optional[str] = None
+    duration_months: Optional[int] = None
+
+
+class ReservationInfo(BaseModel):
+    id: str
+    rep_id: Optional[str] = None
+    rep_name: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+
+class MachineIssueInfo(BaseModel):
+    id: str
+    title: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+
+
+class MachineFullDetail(BaseModel):
+    machine: MachineResponse
+    product: Optional[ProductResponse] = None
+    status_history: list[MachineStatusLogEntry] = []
+    warranty: Optional[WarrantyInfo] = None
+    active_reservation: Optional[ReservationInfo] = None
+    open_issues: list[MachineIssueInfo] = []
+
+
+class BulkStatusUpdate(BaseModel):
+    machine_ids: list[str]
+    new_status: str
+    reason: Optional[str] = None
+    force: Optional[bool] = False
+
+
+class BulkStatusResult(BaseModel):
+    updated: int
+    failed: int
+    errors: list[str] = []
+
+
+class MachineStatusSummary(BaseModel):
+    available: int = 0
+    reserved: int = 0
+    ordered: int = 0
+    sold: int = 0
+    delivered: int = 0
+    returned: int = 0
+    total: int = 0

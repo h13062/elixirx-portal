@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import FRONTEND_URL
-from app.routers import auth_router, inventory_router
+from app.routers import auth_router, inventory_router, machine_lifecycle
 
 app = FastAPI(title="ElixirX API")
 
@@ -14,6 +14,10 @@ app.add_middleware(
 )
 
 app.include_router(auth_router.router)
+# machine_lifecycle MUST be registered before inventory_router so that the
+# static /machines/status-summary and /machines/bulk-status paths resolve
+# before inventory_router's /machines/{machine_id} catches them.
+app.include_router(machine_lifecycle.router)
 app.include_router(inventory_router.router)
 
 
