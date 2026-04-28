@@ -333,3 +333,49 @@ class WarrantyDashboard(BaseModel):
     expired: int
     total: int
     expiring_machines: list[ExpiringMachineInfo]
+
+
+# ---------------------------------------------------------------------------
+# Reservations (Sprint 3 Task 3.3)
+# ---------------------------------------------------------------------------
+
+class ReservationCreate(BaseModel):
+    machine_id: str  # UUID or serial_number
+    reserved_for: str
+
+
+class ReservationDenyRequest(BaseModel):
+    reason: str
+
+
+class ReservationResponse(BaseModel):
+    id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    product_name: Optional[str] = None
+    reserved_by: Optional[str] = None
+    reserved_by_name: Optional[str] = None
+    reserved_for: Optional[str] = None
+    status: str
+    approved_by: Optional[str] = None
+    approved_by_name: Optional[str] = None
+    deny_reason: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ExpiredReservationsResult(BaseModel):
+    expired_count: int
+    expired_reservations: list[ReservationResponse]
+
+
+class ExpiringSoonReservation(BaseModel):
+    reservation_id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    reserved_by: Optional[str] = None
+    rep_name: Optional[str] = None
+    reserved_for: Optional[str] = None
+    expires_at: datetime
+    hours_remaining: int
