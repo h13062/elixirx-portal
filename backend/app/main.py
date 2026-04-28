@@ -4,6 +4,7 @@ from app.core.config import FRONTEND_URL
 from app.routers import (
     auth_router,
     inventory_router,
+    issues,
     machine_lifecycle,
     reservations,
     warranty,
@@ -26,6 +27,7 @@ app.include_router(auth_router.router)
 app.include_router(machine_lifecycle.router)
 app.include_router(warranty.router)
 app.include_router(reservations.router)
+app.include_router(issues.router)
 app.include_router(inventory_router.router)
 
 

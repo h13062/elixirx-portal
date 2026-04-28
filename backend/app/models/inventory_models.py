@@ -379,3 +379,75 @@ class ExpiringSoonReservation(BaseModel):
     reserved_for: Optional[str] = None
     expires_at: datetime
     hours_remaining: int
+
+
+# ---------------------------------------------------------------------------
+# Machine Issues (Sprint 3 Task 3.4)
+# ---------------------------------------------------------------------------
+
+from typing import Literal  # noqa: E402
+
+IssuePriority = Literal["low", "medium", "high", "urgent"]
+IssueStatus = Literal["open", "in_progress", "resolved", "closed"]
+
+
+class IssueCreate(BaseModel):
+    machine_id: str  # UUID or serial_number
+    title: str
+    description: Optional[str] = None
+    priority: Optional[IssuePriority] = "medium"
+
+
+class IssueUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[IssuePriority] = None
+
+
+class IssueStatusUpdate(BaseModel):
+    status: IssueStatus
+    resolution_notes: Optional[str] = None
+
+
+class IssueResponse(BaseModel):
+    id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    product_name: Optional[str] = None
+    reported_by: Optional[str] = None
+    reported_by_name: Optional[str] = None
+    title: str
+    description: Optional[str] = None
+    priority: str
+    status: str
+    resolved_by: Optional[str] = None
+    resolved_by_name: Optional[str] = None
+    resolution_notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class IssueSummaryByPriority(BaseModel):
+    urgent: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class RecentUrgentIssue(BaseModel):
+    id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    title: str
+    priority: str
+    created_at: datetime
+
+
+class IssueSummary(BaseModel):
+    open: int = 0
+    in_progress: int = 0
+    resolved: int = 0
+    closed: int = 0
+    total: int = 0
+    by_priority: IssueSummaryByPriority
+    recent_urgent: list[RecentUrgentIssue]
