@@ -1,0 +1,843 @@
+/* ── Page wrapper ───────────────────────────────────────────────────── */
+.md-page {
+  padding: 20px 24px;
+  max-width: 1240px;
+  margin: 0 auto;
+  color: #F8FAFC;
+}
+
+/* ── Header bar ─────────────────────────────────────────────────────── */
+.md-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.md-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #1E293B;
+  background: #111827;
+  color: #94A3B8;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.md-back:hover {
+  background: #1E293B;
+  color: #F8FAFC;
+}
+
+.md-serial {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 22px;
+  color: #F8FAFC;
+  font-weight: 600;
+  margin: 0;
+}
+
+.md-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 0;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: color 0.15s;
+}
+
+.md-back-link:hover {
+  color: #94A3B8;
+}
+
+/* ── Detail tabs (History | Issues) ─────────────────────────────────── */
+.md-detail-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 24px 0 16px;
+  border-bottom: 1px solid #1E293B;
+  padding-bottom: 12px;
+}
+
+.md-detail-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 18px;
+  background: transparent;
+  color: #64748B;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.md-detail-tab:hover:not(.md-detail-tab-active) {
+  color: #94A3B8;
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.md-detail-tab-active {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3B82F6;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.md-type-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.md-type-badge.rx {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3B82F6;
+}
+
+.md-type-badge.ro {
+  background-color: rgba(6, 182, 212, 0.15);
+  color: #06B6D4;
+}
+
+.md-header-spacer {
+  flex: 1;
+}
+
+/* ── Actions dropdown ───────────────────────────────────────────────── */
+.md-actions-wrap {
+  position: relative;
+}
+
+.md-actions-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: transparent;
+}
+
+.md-actions-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.md-actions-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #CBD5E1;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.md-actions-menu-item:hover {
+  background: #1E293B;
+  color: #F8FAFC;
+}
+
+.md-actions-menu-item-danger {
+  color: #F87171;
+}
+
+.md-actions-menu-item-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #FCA5A5;
+}
+
+.md-actions-menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.md-menu-divider {
+  height: 1px;
+  background: #1E293B;
+  margin: 4px 2px;
+}
+
+/* ── Status-change modal extras ─────────────────────────────────────── */
+.md-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #CBD5E1;
+  cursor: pointer;
+}
+
+.md-checkbox-row input[type="checkbox"] {
+  margin: 0;
+  accent-color: #3B82F6;
+}
+
+.md-warning-text {
+  padding: 8px 10px;
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 2px solid #F59E0B;
+  border-radius: 4px;
+  color: #FBBF24;
+  font-size: 12px;
+}
+
+/* ── Per-issue delete button ───────────────────────────────────────── */
+.md-issue-delete-btn {
+  margin-left: auto;
+  padding: 3px 6px !important;
+}
+
+/* ── Cards row ──────────────────────────────────────────────────────── */
+.md-cards-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.md-card {
+  flex: 1 1 300px;
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.md-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748B;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.md-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 4px 0;
+  gap: 12px;
+}
+
+.md-kv-label {
+  color: #64748B;
+  flex-shrink: 0;
+}
+
+.md-kv-value {
+  color: #F8FAFC;
+  text-align: right;
+  word-break: break-word;
+}
+
+.md-kv-value.mono {
+  font-family: 'Courier New', Courier, monospace;
+  color: #94A3B8;
+}
+
+.md-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  color: #64748B;
+  font-size: 13px;
+}
+
+.md-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Warranty/reservation status pills ──────────────────────────────── */
+.md-warranty-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.md-status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.md-status-active {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34D399;
+}
+
+.md-status-expiring_soon {
+  background: rgba(245, 158, 11, 0.12);
+  color: #FBBF24;
+}
+
+.md-status-expired {
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+}
+
+.md-res-pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #FBBF24;
+}
+
+.md-res-approved {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34D399;
+}
+
+.md-days-remaining {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.md-days-remaining.ok {
+  color: #34D399;
+}
+
+.md-days-remaining.soon {
+  color: #FBBF24;
+}
+
+.md-days-remaining.expired {
+  color: #F87171;
+}
+
+.md-countdown {
+  margin-top: 6px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: #34D399;
+}
+
+.md-pending-note {
+  margin-top: 6px;
+  font-style: italic;
+  font-size: 12px;
+  color: #FBBF24;
+}
+
+/* ── Section titles & headers ───────────────────────────────────────── */
+.md-section-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748B;
+  font-weight: 600;
+  margin: 8px 0 12px;
+}
+
+.md-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.md-count-badge {
+  display: inline-block;
+  margin-left: 6px;
+  background: #1E293B;
+  color: #F8FAFC;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ── Timeline ───────────────────────────────────────────────────────── */
+.md-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+}
+
+.md-timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: #1E293B;
+}
+
+.md-timeline-item {
+  display: flex;
+  gap: 14px;
+  padding: 8px 0;
+  position: relative;
+}
+
+.md-timeline-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+  background: #64748B;
+  border: 2px solid #0A0F1C;
+  z-index: 1;
+}
+
+.md-timeline-dot.dot-available  { background: #10B981; }
+.md-timeline-dot.dot-reserved   { background: #F59E0B; }
+.md-timeline-dot.dot-ordered    { background: #8B5CF6; }
+.md-timeline-dot.dot-sold       { background: #3B82F6; }
+.md-timeline-dot.dot-delivered  { background: #10B981; }
+.md-timeline-dot.dot-returned   { background: #EF4444; }
+
+.md-timeline-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.md-timeline-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.md-timeline-from {
+  color: #64748B;
+  font-size: 11px;
+}
+
+.md-timeline-by {
+  color: #94A3B8;
+  font-size: 12px;
+}
+
+.md-timeline-reason {
+  color: #CBD5E1;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.md-timeline-time {
+  color: #64748B;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* ── Issues list ────────────────────────────────────────────────────── */
+.md-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.md-issue-card {
+  background: #0A0F1C;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  padding: 12px;
+  border-left-width: 3px;
+}
+
+.md-issue-card.priority-urgent  { border-left-color: #EF4444; }
+.md-issue-card.priority-high    { border-left-color: #F59E0B; }
+.md-issue-card.priority-medium  { border-left-color: #3B82F6; }
+.md-issue-card.priority-low     { border-left-color: #64748B; }
+
+.md-issue-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.md-issue-title {
+  color: #F8FAFC;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.md-issue-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.md-issue-status-open         { background: rgba(59, 130, 246, 0.12); color: #60A5FA; }
+.md-issue-status-in_progress  { background: rgba(245, 158, 11, 0.12); color: #FBBF24; }
+.md-issue-status-resolved     { background: rgba(16, 185, 129, 0.12); color: #34D399; }
+.md-issue-status-closed       { background: rgba(100, 116, 139, 0.18); color: #94A3B8; }
+
+.md-issue-desc {
+  color: #94A3B8;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.md-issue-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  color: #64748B;
+  font-size: 11px;
+}
+
+.md-priority-tag {
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.md-priority-tag.prio-urgent  { color: #F87171; }
+.md-priority-tag.prio-high    { color: #FBBF24; }
+.md-priority-tag.prio-medium  { color: #60A5FA; }
+.md-priority-tag.prio-low     { color: #94A3B8; }
+
+.md-resolution-block {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border-left: 2px solid #10B981;
+  border-radius: 4px;
+  color: #D1FAE5;
+  font-size: 12px;
+}
+
+.md-issue-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.md-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.md-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.md-btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.md-btn-xs {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.md-btn-primary {
+  background: #3B82F6;
+  color: white;
+  border-color: #3B82F6;
+}
+
+.md-btn-primary:hover:not(:disabled) {
+  background: #2563EB;
+}
+
+.md-btn-success {
+  background: #10B981;
+  color: white;
+  border-color: #10B981;
+}
+
+.md-btn-success:hover:not(:disabled) {
+  background: #059669;
+}
+
+.md-btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #F87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.md-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.md-btn-ghost {
+  background: transparent;
+  color: #94A3B8;
+  border-color: #1E293B;
+}
+
+.md-btn-ghost:hover:not(:disabled) {
+  background: #1E293B;
+  color: #F8FAFC;
+}
+
+/* ── Empty / error blocks ───────────────────────────────────────────── */
+.md-empty-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  background: #0A0F1C;
+  border: 1px dashed #1E293B;
+  border-radius: 8px;
+  color: #64748B;
+  font-size: 13px;
+}
+
+.md-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+  color: #F87171;
+}
+
+.md-not-found {
+  text-align: center;
+  padding: 64px 24px;
+  color: #94A3B8;
+}
+
+.md-not-found h2 {
+  color: #F8FAFC;
+  margin-bottom: 8px;
+}
+
+/* ── Modals ─────────────────────────────────────────────────────────── */
+.md-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.md-modal {
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.md-modal-title {
+  margin: 0;
+  color: #F8FAFC;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.md-modal-sub {
+  margin: 0;
+  color: #94A3B8;
+  font-size: 12px;
+}
+
+.md-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.md-field span {
+  color: #94A3B8;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.md-field input,
+.md-field textarea,
+.md-field select {
+  background: #0A0F1C;
+  border: 1px solid #1E293B;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #F8FAFC;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.md-field input:focus,
+.md-field textarea:focus,
+.md-field select:focus {
+  border-color: #3B82F6;
+}
+
+.md-form-error {
+  color: #F87171;
+  font-size: 12px;
+}
+
+.md-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+.md-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 1100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.md-toast {
+  border-left: 3px solid transparent;
+  background: #111827;
+  color: #F8FAFC;
+  border: 1px solid #1E293B;
+}
+
+.md-toast-success {
+  background: #111827;
+  color: #F8FAFC;
+  border-left: 3px solid #10B981;
+}
+
+.md-toast-error {
+  background: #111827;
+  color: #F8FAFC;
+  border-left: 3px solid #EF4444;
+}
+
+.md-toast-info {
+  background: #111827;
+  color: #F8FAFC;
+  border-left: 3px solid #3B82F6;
+}
+
+/* ── Loading skeletons ──────────────────────────────────────────────── */
+.md-skeleton {
+  background: #1E293B;
+  border-radius: 8px;
+  animation: md-pulse 1.5s ease-in-out infinite;
+}
+
+.md-skel-header {
+  height: 36px;
+  margin-bottom: 18px;
+  width: 60%;
+}
+
+.md-skel-card {
+  flex: 1 1 300px;
+  height: 220px;
+}
+
+.md-skel-block {
+  height: 200px;
+  margin-top: 24px;
+}
+
+@keyframes md-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 0.3; }
+}
+
+/* ── Status badge / dot reuse (matches inventory MachineTable styles) ─ */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-available  { background-color: rgba(16, 185, 129, 0.12); color: #34D399; }
+.status-available  .status-dot { background-color: #10B981; }
+.status-reserved   { background-color: rgba(245, 158, 11, 0.12);  color: #FBBF24; }
+.status-reserved   .status-dot { background-color: #F59E0B; }
+.status-ordered    { background-color: rgba(139, 92, 246, 0.12);  color: #A78BFA; }
+.status-ordered    .status-dot { background-color: #8B5CF6; }
+.status-sold       { background-color: rgba(59, 130, 246, 0.12);  color: #60A5FA; }
+.status-sold       .status-dot { background-color: #3B82F6; }
+.status-delivered  { background-color: rgba(16, 185, 129, 0.12);  color: #34D399; }
+.status-delivered  .status-dot { background-color: #10B981; }
+.status-returned   { background-color: rgba(239, 68, 68, 0.12);   color: #F87171; }
+.status-returned   .status-dot { background-color: #EF4444; }

@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.auth import get_current_user, require_admin
 from app.core.helpers import is_uuid, lookup_machine
+from app.core.notification_helper import create_notification, notify_admins
 from app.core.supabase_client import supabase_admin
 from app.models.inventory_models import (
     ExpiredReservationsResult,
@@ -171,35 +172,6 @@ def _release_machine(machine_id: str, current_status: str, changed_by: str, reas
     _log_status_change(machine_id, current_status, "available", changed_by, reason)
 
 
-def _notify(payload: dict) -> None:
-    """Best-effort notification insert. Schema may vary; failures are swallowed."""
-    try:
-        supabase_admin.table("notifications").insert({
-            "read": False,
-            "created_at": _now_iso(),
-            **payload,
-        }).execute()
-    except Exception:
-        pass
-
-
-def _notify_admins(payload: dict) -> None:
-    """Send `payload` (sans user_id) to every admin/super_admin profile."""
-    try:
-        admins = (
-            supabase_admin.table("profiles")
-            .select("id")
-            .in_("role", ["admin", "super_admin"])
-            .execute()
-            .data
-            or []
-        )
-        for a in admins:
-            _notify({**payload, "user_id": a["id"]})
-    except Exception:
-        pass
-
-
 # ---------------------------------------------------------------------------
 # POST /api/reservations  (any authenticated user)
 # ---------------------------------------------------------------------------
@@ -255,20 +227,18 @@ def create_reservation(
         reservation_id = created.data[0]["id"]
 
         # Notify all admins
-        product_join = machine.get("products") or {}
         serial = machine["serial_number"]
         rep_name = current_user.get("full_name") or current_user.get("email") or "Rep"
-        _notify_admins({
-            "type": "reservation_request",
-            "title": "Reservation Request",
-            "message": (
+        notify_admins(
+            title="Reservation Request",
+            message=(
                 f"{rep_name} requested reservation for machine {serial} "
                 f"for {payload.reserved_for}"
             ),
-            "entity_type": "reservation",
-            "entity_id": reservation_id,
-            "machine_id": machine["id"],
-        })
+            notification_type="reservation_request",
+            entity_type="reservation",
+            entity_id=reservation_id,
+        )
 
         full = _fetch_reservation_by_id(reservation_id)
         if not full:
@@ -432,18 +402,18 @@ def check_expired(current_user: dict = Depends(require_admin)):
                     machine_join.get("serial_number")
                     if isinstance(machine_join, dict) else None
                 )
-                _notify({
-                    "user_id": res.get("reserved_by"),
-                    "type": "reservation_expiring",
-                    "title": "Reservation Expired",
-                    "message": (
-                        f"Your reservation for machine {serial or res['machine_id']} "
-                        "has expired."
-                    ),
-                    "entity_type": "reservation",
-                    "entity_id": res["id"],
-                    "machine_id": res["machine_id"],
-                })
+                if res.get("reserved_by"):
+                    create_notification(
+                        user_id=res["reserved_by"],
+                        title="Reservation Expired",
+                        message=(
+                            f"Your reservation for machine {serial or res['machine_id']} "
+                            "has expired."
+                        ),
+                        notification_type="reservation_expiring",
+                        entity_type="reservation",
+                        entity_id=res["id"],
+                    )
 
                 refreshed = _fetch_reservation_by_id(res["id"])
                 if refreshed:
@@ -563,18 +533,18 @@ def approve_reservation(
         )
 
         # Notify the rep
-        _notify({
-            "user_id": res.get("reserved_by"),
-            "type": "reservation_approved",
-            "title": "Reservation Approved",
-            "message": (
-                f"Your reservation for machine {machine['serial_number']} has been "
-                f"approved. Expires on {expires_at.date().isoformat()}."
-            ),
-            "entity_type": "reservation",
-            "entity_id": reservation_id,
-            "machine_id": machine["id"],
-        })
+        if res.get("reserved_by"):
+            create_notification(
+                user_id=res["reserved_by"],
+                title="Reservation Approved",
+                message=(
+                    f"Your reservation for machine {machine['serial_number']} has been "
+                    f"approved. Expires on {expires_at.date().isoformat()}."
+                ),
+                notification_type="reservation_approved",
+                entity_type="reservation",
+                entity_id=reservation_id,
+            )
 
         full = _fetch_reservation_by_id(reservation_id)
         return _build_reservation_response(full)
@@ -629,18 +599,18 @@ def deny_reservation(
         serial = (
             machine_join.get("serial_number") if isinstance(machine_join, dict) else None
         )
-        _notify({
-            "user_id": res.get("reserved_by"),
-            "type": "reservation_denied",
-            "title": "Reservation Denied",
-            "message": (
-                f"Your reservation for machine {serial or res['machine_id']} "
-                f"was denied. Reason: {payload.reason}"
-            ),
-            "entity_type": "reservation",
-            "entity_id": reservation_id,
-            "machine_id": res["machine_id"],
-        })
+        if res.get("reserved_by"):
+            create_notification(
+                user_id=res["reserved_by"],
+                title="Reservation Denied",
+                message=(
+                    f"Your reservation for machine {serial or res['machine_id']} "
+                    f"was denied. Reason: {payload.reason}"
+                ),
+                notification_type="reservation_denied",
+                entity_type="reservation",
+                entity_id=reservation_id,
+            )
 
         full = _fetch_reservation_by_id(reservation_id)
         return _build_reservation_response(full)

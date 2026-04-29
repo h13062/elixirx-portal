@@ -1,0 +1,107 @@
+.cm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+}
+
+.cm-modal {
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  max-width: 440px;
+  width: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cm-title {
+  margin: 0;
+  color: #F8FAFC;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cm-message {
+  color: #CBD5E1;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cm-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 2px solid #F59E0B;
+  border-radius: 4px;
+  color: #FBBF24;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cm-error {
+  color: #F87171;
+  font-size: 12px;
+}
+
+.cm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cm-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.cm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cm-btn-cancel {
+  background: transparent;
+  color: #94A3B8;
+  border-color: #1E293B;
+}
+
+.cm-btn-cancel:hover:not(:disabled) {
+  background: #1E293B;
+  color: #F8FAFC;
+}
+
+.cm-btn-danger {
+  background: #EF4444;
+  color: white;
+  border-color: #EF4444;
+}
+
+.cm-btn-danger:hover:not(:disabled) {
+  background: #DC2626;
+}
+
+.cm-btn-primary {
+  background: #3B82F6;
+  color: white;
+  border-color: #3B82F6;
+}
+
+.cm-btn-primary:hover:not(:disabled) {
+  background: #2563EB;
+}

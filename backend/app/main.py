@@ -6,6 +6,7 @@ from app.routers import (
     inventory_router,
     issues,
     machine_lifecycle,
+    notifications,
     reservations,
     warranty,
 )
@@ -28,6 +29,7 @@ app.include_router(machine_lifecycle.router)
 app.include_router(warranty.router)
 app.include_router(reservations.router)
 app.include_router(issues.router)
+app.include_router(notifications.router)
 app.include_router(inventory_router.router)
 
 

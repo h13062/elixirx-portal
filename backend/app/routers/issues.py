@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.auth import get_current_user, require_admin
 from app.core.helpers import lookup_machine
+from app.core.notification_helper import create_notification, notify_admins
 from app.core.supabase_client import supabase_admin
 from app.models.inventory_models import (
     IssueCreate,
@@ -122,34 +123,6 @@ def _sort_by_priority_then_recent(rows: list[dict]) -> list[dict]:
     )
 
 
-def _notify(payload: dict) -> None:
-    """Best-effort notification insert. Schema may vary; failures are swallowed."""
-    try:
-        supabase_admin.table("notifications").insert({
-            "read": False,
-            "created_at": _now_iso(),
-            **payload,
-        }).execute()
-    except Exception:
-        pass
-
-
-def _notify_admins(payload: dict) -> None:
-    try:
-        admins = (
-            supabase_admin.table("profiles")
-            .select("id")
-            .in_("role", ["admin", "super_admin"])
-            .execute()
-            .data
-            or []
-        )
-        for a in admins:
-            _notify({**payload, "user_id": a["id"]})
-    except Exception:
-        pass
-
-
 # ---------------------------------------------------------------------------
 # POST /api/issues  (any authenticated user)
 # ---------------------------------------------------------------------------
@@ -194,17 +167,16 @@ def create_issue(
         reporter_name = (
             current_user.get("full_name") or current_user.get("email") or "User"
         )
-        _notify_admins({
-            "type": "ticket_update",
-            "title": "New Machine Issue",
-            "message": (
+        notify_admins(
+            title="New Machine Issue",
+            message=(
                 f"{reporter_name} reported {priority} issue on machine "
                 f"{machine['serial_number']}: {payload.title}"
             ),
-            "entity_type": "machine_issue",
-            "entity_id": issue_id,
-            "machine_id": machine["id"],
-        })
+            notification_type="ticket_update",
+            entity_type="machine_issue",
+            entity_id=issue_id,
+        )
 
         full = _fetch_issue_by_id(issue_id)
         if not full:
@@ -411,18 +383,18 @@ def change_issue_status(
         serial = (
             machine_join.get("serial_number") if isinstance(machine_join, dict) else None
         )
-        _notify({
-            "user_id": existing.get("reported_by"),
-            "type": "ticket_update",
-            "title": "Issue Updated",
-            "message": (
-                f"Your issue '{existing['title']}' on machine "
-                f"{serial or existing['machine_id']} has been marked as {new_status}"
-            ),
-            "entity_type": "machine_issue",
-            "entity_id": issue_id,
-            "machine_id": existing["machine_id"],
-        })
+        if existing.get("reported_by"):
+            create_notification(
+                user_id=existing["reported_by"],
+                title="Issue Updated",
+                message=(
+                    f"Your issue '{existing['title']}' on machine "
+                    f"{serial or existing['machine_id']} has been marked as {new_status}"
+                ),
+                notification_type="ticket_update",
+                entity_type="machine_issue",
+                entity_id=issue_id,
+            )
 
         full = _fetch_issue_by_id(issue_id)
         return _build_issue_response(full)

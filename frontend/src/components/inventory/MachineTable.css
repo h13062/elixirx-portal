@@ -37,6 +37,40 @@
   transition: background-color 0.15s;
 }
 
+.machine-row-clickable {
+  cursor: pointer;
+}
+
+.machine-row-clickable:hover {
+  background-color: rgba(59, 130, 246, 0.04);
+}
+
+/* ── Delete action column ─────────────────────────────────────────── */
+.machine-actions-col {
+  width: 36px;
+  text-align: right;
+}
+
+.machine-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #64748B;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.machine-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #F87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
 /* ── Cell styles ── */
 .machine-serial {
   font-family: 'Courier New', Courier, monospace;

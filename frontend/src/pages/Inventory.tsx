@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import './Inventory.css'
 import '../components/inventory/ConsumableStockSection.css'
 import { useAuth } from '../lib/auth'
-import { apiGet } from '../lib/api'
+import { apiGet, apiDelete, apiPut } from '../lib/api'
 import FilterBar from '../components/inventory/FilterBar'
 import MachineTable from '../components/inventory/MachineTable'
 import StockModal from '../components/inventory/StockModal'
-import { X, Loader2, Plus } from 'lucide-react'
+import { X, Loader2, Plus, Package, Filter as FilterIcon, Beaker, Trash2, Pencil } from 'lucide-react'
+import ConfirmModal from '../components/ConfirmModal'
 import type {
   Machine,
   ConsumableStock,
@@ -114,9 +116,14 @@ function formatStockDate(updatedAt: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
+type InventoryTab = 'machines' | 'filters' | 'consumables'
+
 export default function Inventory() {
   const { user, access_token } = useAuth()
+  const navigate = useNavigate()
   const BASE_URL = import.meta.env.VITE_API_URL as string
+
+  const [activeTab, setActiveTab] = useState<InventoryTab>('machines')
 
   const [allMachines, setAllMachines]         = useState<Machine[]>([])
   const [consumableStock, setConsumableStock] = useState<ConsumableStock[]>([])
@@ -145,6 +152,13 @@ export default function Inventory() {
   // Stock management modal
   const [modalProduct, setModalProduct] = useState<ConsumableStock | null>(null)
   const [modalFlavor, setModalFlavor]   = useState<SupplementFlavor | null>(null)
+
+  // Delete-confirmation modal state — one of: machine | product | flavor
+  type DeleteTarget =
+    | { kind: 'machine'; serial: string }
+    | { kind: 'product'; sku: string; name: string; batchCount: number }
+    | { kind: 'flavor'; id: string; name: string; batchCount: number }
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
 
   // Add flavor modal
   const [showAddFlavor, setShowAddFlavor]   = useState(false)
@@ -260,6 +274,16 @@ export default function Inventory() {
   const displayMachines = useMemo(
     () => statusFilter === 'all' ? allMachines : allMachines.filter(m => m.status === statusFilter),
     [allMachines, statusFilter],
+  )
+
+  // Split consumable stock by tab
+  const filterStocks = useMemo(
+    () => consumableStock.filter(s => s.product_name.toLowerCase().includes('filter')),
+    [consumableStock],
+  )
+  const nonFilterStocks = useMemo(
+    () => consumableStock.filter(s => !s.product_name.toLowerCase().includes('filter')),
+    [consumableStock],
   )
 
   const rxProducts = useMemo(
@@ -384,6 +408,41 @@ export default function Inventory() {
   }
 
   // -------------------------------------------------------------------------
+  // Delete / deactivate handlers
+  // -------------------------------------------------------------------------
+
+  async function handleDeleteMachine(serial: string) {
+    await apiDelete(`/api/machines/${encodeURIComponent(serial)}`, access_token!)
+    setAllMachines(prev => prev.filter(m => m.serial_number !== serial))
+    showToast(`Machine ${serial} removed`, 'success')
+  }
+
+  async function handleDeactivateProduct(sku: string, name: string) {
+    await apiPut(`/api/products/${encodeURIComponent(sku)}`, { is_active: false }, access_token!)
+    setConsumableStock(prev => prev.filter(s => s.product_sku !== sku))
+    showToast(`${name} deactivated`, 'success')
+  }
+
+  async function handleDeactivateFlavor(id: string, name: string) {
+    await apiDelete(`/api/supplement-flavors/${id}`, access_token!)
+    setFlavors(prev => prev.filter(f => f.id !== id))
+    showToast(`Flavor "${name}" deactivated`, 'success')
+  }
+
+  // Wraps the per-target delete handlers for the ConfirmModal callback.
+  async function performDelete() {
+    if (!deleteTarget) return
+    if (deleteTarget.kind === 'machine') {
+      await handleDeleteMachine(deleteTarget.serial)
+    } else if (deleteTarget.kind === 'product') {
+      await handleDeactivateProduct(deleteTarget.sku, deleteTarget.name)
+    } else if (deleteTarget.kind === 'flavor') {
+      await handleDeactivateFlavor(deleteTarget.id, deleteTarget.name)
+    }
+    setDeleteTarget(null)
+  }
+
+  // -------------------------------------------------------------------------
   // Machine form handlers
   // -------------------------------------------------------------------------
 
@@ -483,6 +542,31 @@ export default function Inventory() {
 
   return (
     <div className="inventory-page">
+      <h1 className="inv-heading">Inventory</h1>
+
+      <div className="inv-tabs">
+        <button
+          className={`inv-tab${activeTab === 'machines' ? ' inv-tab-active' : ''}`}
+          onClick={() => setActiveTab('machines')}
+        >
+          <Package size={14} /> Machines
+        </button>
+        <button
+          className={`inv-tab${activeTab === 'filters' ? ' inv-tab-active' : ''}`}
+          onClick={() => setActiveTab('filters')}
+        >
+          <FilterIcon size={14} /> Filters
+        </button>
+        <button
+          className={`inv-tab${activeTab === 'consumables' ? ' inv-tab-active' : ''}`}
+          onClick={() => setActiveTab('consumables')}
+        >
+          <Beaker size={14} /> Consumables
+        </button>
+      </div>
+
+      {activeTab === 'machines' && (
+      <>
       <FilterBar
         statusFilter={statusFilter}
         typeFilter={typeFilter}
@@ -654,12 +738,22 @@ export default function Inventory() {
         </p>
       )}
 
-      <MachineTable machines={displayMachines} loading={machinesLoading} />
+      <MachineTable
+        machines={displayMachines}
+        loading={machinesLoading}
+        onRowClick={(m) => navigate(`/machines/${m.serial_number}`)}
+        onDelete={isAdmin ? (m) => setDeleteTarget({ kind: 'machine', serial: m.serial_number }) : undefined}
+      />
+      </>
+      )}
 
-      {/* ── Consumable Stock Section ── */}
+      {/* ── Consumable Stock Section (Filters / Consumables tabs) ── */}
+      {(activeTab === 'filters' || activeTab === 'consumables') && (
       <section className="stock-section">
         <div className="stock-section-header">
-          <h2 className="stock-section-title">Consumable Stock</h2>
+          <h2 className="stock-section-title">
+            {activeTab === 'filters' ? 'Filter Products' : 'Consumables'}
+          </h2>
           {isAdmin && (
             <button
               className="stock-add-product-btn"
@@ -749,10 +843,12 @@ export default function Inventory() {
                 </div>
               ))}
             </>
-          ) : consumableStock.length === 0 ? (
-            <p className="stock-empty">No consumable stock data available.</p>
+          ) : (activeTab === 'filters' ? filterStocks : nonFilterStocks).length === 0 ? (
+            <p className="stock-empty">
+              {activeTab === 'filters' ? 'No filter products available.' : 'No consumable stock data available.'}
+            </p>
           ) : (
-            consumableStock.map((item, i) => {
+            (activeTab === 'filters' ? filterStocks : nonFilterStocks).map((item, i) => {
               const isSupp = item.product_name.toLowerCase().includes('supplement')
               const threshold = item.min_threshold ?? 10
               const isLow = item.quantity < threshold
@@ -765,6 +861,35 @@ export default function Inventory() {
                   tabIndex={0}
                   onKeyDown={e => { if (e.key === 'Enter') openProductModal(item) }}
                 >
+                  {isAdmin && (
+                    <div className="stock-card-icon-row">
+                      {activeTab === 'filters' && (
+                        <button
+                          className="stock-card-icon-btn"
+                          title="Edit / manage batches"
+                          onClick={e => { e.stopPropagation(); openProductModal(item) }}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      )}
+                      <button
+                        className="stock-card-icon-btn stock-card-icon-btn-danger"
+                        title="Deactivate product"
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (!item.product_sku) return
+                          setDeleteTarget({
+                            kind: 'product',
+                            sku: item.product_sku,
+                            name: item.product_name,
+                            batchCount: item.batch_count,
+                          })
+                        }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
                   <p className="stock-card-name">{item.product_name}</p>
                   {item.product_sku && (
                     <p className="stock-card-sku">{item.product_sku}</p>
@@ -798,8 +923,8 @@ export default function Inventory() {
           )}
         </div>
 
-        {/* Flavor cards (below Supplement Pack) */}
-        {!flavorsLoading && flavors.length > 0 && (
+        {/* Flavor cards (below Supplement Pack) — Consumables tab only */}
+        {activeTab === 'consumables' && !flavorsLoading && flavors.length > 0 && (
           <div className="flavor-cards-row">
             {flavors.map(f => (
               <div
@@ -810,6 +935,23 @@ export default function Inventory() {
                 tabIndex={0}
                 onKeyDown={e => { if (e.key === 'Enter') openFlavorModal(f) }}
               >
+                {isAdmin && (
+                  <button
+                    className="flavor-card-delete-btn"
+                    title="Deactivate flavor"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setDeleteTarget({
+                        kind: 'flavor',
+                        id: f.id,
+                        name: f.name,
+                        batchCount: f.batch_count,
+                      })
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
                 <p className="flavor-card-name">{f.name}</p>
                 {f.sku && <p className="flavor-card-sku">{f.sku}</p>}
                 <p className="flavor-card-qty">{f.total_in_stock}</p>
@@ -836,8 +978,8 @@ export default function Inventory() {
           </div>
         )}
 
-        {/* Add Flavor modal */}
-        {showAddFlavor && isAdmin && (
+        {/* Add Flavor modal — Consumables tab only */}
+        {activeTab === 'consumables' && showAddFlavor && isAdmin && (
           <div className="sm-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAddFlavor(false) }}>
             <div className="sm-container" style={{ maxWidth: 480 }}>
               <div className="sm-header">
@@ -923,6 +1065,7 @@ export default function Inventory() {
           </div>
         )}
       </section>
+      )}
 
       {/* Stock Management Modal */}
       {modalProduct && (
@@ -934,6 +1077,65 @@ export default function Inventory() {
           isAdmin={isAdmin}
           onClose={closeModal}
           onStockUpdated={() => { fetchStock(); fetchFlavors() }}
+        />
+      )}
+
+      {/* Delete / deactivate confirm modal */}
+      {deleteTarget && deleteTarget.kind === 'machine' && (
+        <ConfirmModal
+          title="Remove Machine"
+          message={
+            <>
+              Are you sure you want to remove machine{' '}
+              <strong>{deleteTarget.serial}</strong>? This action cannot be undone.
+            </>
+          }
+          warning="If this machine has an active warranty, reservation, or open issues, the server will block the delete and prompt you to remove them first."
+          confirmLabel="Remove"
+          confirmKind="danger"
+          onConfirm={performDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+      {deleteTarget && deleteTarget.kind === 'product' && (
+        <ConfirmModal
+          title="Remove Product"
+          message={
+            <>
+              Are you sure you want to deactivate{' '}
+              <strong>{deleteTarget.name}</strong>? It will be hidden from the
+              catalog.
+            </>
+          }
+          warning={
+            deleteTarget.batchCount > 0
+              ? `This product has ${deleteTarget.batchCount} batch${deleteTarget.batchCount === 1 ? '' : 'es'}. They will also be hidden.`
+              : null
+          }
+          confirmLabel="Deactivate"
+          confirmKind="danger"
+          onConfirm={performDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+      {deleteTarget && deleteTarget.kind === 'flavor' && (
+        <ConfirmModal
+          title="Remove Flavor"
+          message={
+            <>
+              Deactivate flavor <strong>{deleteTarget.name}</strong>? It will be
+              hidden from the catalog.
+            </>
+          }
+          warning={
+            deleteTarget.batchCount > 0
+              ? `This flavor has ${deleteTarget.batchCount} batch${deleteTarget.batchCount === 1 ? '' : 'es'}. They will also be hidden.`
+              : null
+          }
+          confirmLabel="Deactivate"
+          confirmKind="danger"
+          onConfirm={performDelete}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
 

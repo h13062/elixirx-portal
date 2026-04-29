@@ -285,3 +285,101 @@ def machine_full_detail(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch machine detail: {e}",
         )
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/machines/{identifier}  (admin only) — Sprint 3 Task 3.6
+# Hard delete. Refuses if the machine is sold/delivered, or if any
+# warranty/reservation/issue references it. Cascades machine_status_log first
+# so the machines.id FK doesn't block the delete.
+# ---------------------------------------------------------------------------
+
+BLOCKED_DELETE_STATUSES = ("sold", "delivered")
+
+
+@router.delete("/machines/{identifier}")
+def delete_machine(identifier: str, current_user: dict = Depends(require_admin)):
+    try:
+        # Lookup the machine
+        q = supabase_admin.table("machines").select("id, serial_number, status")
+        if _is_uuid(identifier):
+            q = q.eq("id", identifier)
+        else:
+            q = q.eq("serial_number", identifier)
+        result = q.execute()
+        if not result.data:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail=f"Machine not found: {identifier}",
+            )
+        machine = result.data[0]
+        machine_id = machine["id"]
+        serial = machine["serial_number"]
+
+        # Status guard
+        if machine["status"] in BLOCKED_DELETE_STATUSES:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Cannot delete: machine is {machine['status']}. "
+                    "Process a return first."
+                ),
+            )
+
+        # Active warranty?
+        warranty_check = (
+            supabase_admin.table("warranty")
+            .select("id")
+            .eq("machine_id", machine_id)
+            .execute()
+        )
+        if warranty_check.data:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete: machine has active warranty",
+            )
+
+        # Active reservation (pending or approved)?
+        reservation_check = (
+            supabase_admin.table("reservations")
+            .select("id")
+            .eq("machine_id", machine_id)
+            .in_("status", ["pending", "approved"])
+            .execute()
+        )
+        if reservation_check.data:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete: machine has active reservation",
+            )
+
+        # Open or in_progress issues?
+        issues_check = (
+            supabase_admin.table("machine_issues")
+            .select("id")
+            .eq("machine_id", machine_id)
+            .in_("status", ["open", "in_progress"])
+            .execute()
+        )
+        if issues_check.data:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete: machine has open issues",
+            )
+
+        # Cascade-delete log entries first to clear the FK
+        supabase_admin.table("machine_status_log").delete().eq(
+            "machine_id", machine_id
+        ).execute()
+
+        # Delete the machine
+        supabase_admin.table("machines").delete().eq("id", machine_id).execute()
+
+        return {"message": f"Machine {serial} deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete machine: {e}",
+        )

@@ -1,9 +1,12 @@
+import { Trash2 } from 'lucide-react'
 import './MachineTable.css'
 import type { Machine } from './types'
 
 interface Props {
   machines: Machine[]
   loading: boolean
+  onRowClick?: (machine: Machine) => void
+  onDelete?: (machine: Machine) => void
 }
 
 const COLUMNS = ['Serial Number', 'Type', 'Batch', 'Mfg Date', 'Status', 'Linked To'] as const
@@ -23,7 +26,7 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function SkeletonRows() {
+function SkeletonRows({ extraCol }: { extraCol?: boolean }) {
   return (
     <>
       {Array.from({ length: 4 }).map((_, i) => (
@@ -33,13 +36,18 @@ function SkeletonRows() {
               <div className={`skeleton-cell ${w}`} />
             </td>
           ))}
+          {extraCol && (
+            <td>
+              <div className="skeleton-cell w-xs" />
+            </td>
+          )}
         </tr>
       ))}
     </>
   )
 }
 
-export default function MachineTable({ machines, loading }: Props) {
+export default function MachineTable({ machines, loading, onRowClick, onDelete }: Props) {
   return (
     <div className="machine-table-wrap">
       <table className="machine-table">
@@ -48,15 +56,16 @@ export default function MachineTable({ machines, loading }: Props) {
             {COLUMNS.map(col => (
               <th key={col}>{col}</th>
             ))}
+            {onDelete && <th className="machine-actions-col"></th>}
           </tr>
         </thead>
 
         <tbody>
           {loading ? (
-            <SkeletonRows />
+            <SkeletonRows extraCol={!!onDelete} />
           ) : machines.length === 0 ? (
             <tr>
-              <td colSpan={6} className="machine-empty">
+              <td colSpan={onDelete ? 7 : 6} className="machine-empty">
                 No machines registered yet
               </td>
             </tr>
@@ -65,7 +74,11 @@ export default function MachineTable({ machines, loading }: Props) {
               const type = machine.machine_type
 
               return (
-                <tr key={machine.id} className="machine-row">
+                <tr
+                  key={machine.id}
+                  className={`machine-row${onRowClick ? ' machine-row-clickable' : ''}`}
+                  onClick={onRowClick ? () => onRowClick(machine) : undefined}
+                >
                   {/* Serial Number */}
                   <td>
                     <span className="machine-serial">{machine.serial_number}</span>
@@ -104,6 +117,22 @@ export default function MachineTable({ machines, loading }: Props) {
                   <td>
                     <span className="machine-muted">—</span>
                   </td>
+
+                  {/* Delete action (admin only — when prop provided) */}
+                  {onDelete && (
+                    <td className="machine-actions-col">
+                      <button
+                        className="machine-delete-btn"
+                        title="Remove machine"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(machine)
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })

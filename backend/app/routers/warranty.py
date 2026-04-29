@@ -23,6 +23,7 @@ _NEXT_LINE = {"new_x": XPos.LMARGIN, "new_y": YPos.NEXT}
 _SAME_LINE = {"new_x": XPos.RIGHT, "new_y": YPos.TOP}
 
 from app.core.auth import get_current_user, require_admin
+from app.core.notification_helper import notify_admins
 from app.core.supabase_client import supabase_admin
 from app.models.inventory_models import (
     ExpiringMachineInfo,
@@ -356,35 +357,39 @@ def check_expiring(current_user: dict = Depends(get_current_user)):
         responses = [_build_warranty_response(r) for r in rows]
         expiring = [r for r in responses if r.status == "expiring_soon"]
 
-        # Best-effort: create a notification for each expiring warranty unless a
-        # warranty_expiring notification was already created in the last 7 days.
+        # Best-effort: notify admins about each expiring warranty unless a
+        # warranty_expiring notification for this warranty was already created
+        # in the last 7 days. Dedup is keyed on entity_type+entity_id (the
+        # warranty's UUID), since `notifications` has no machine_id column.
         try:
-            seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            seven_days_ago = (
+                datetime.now(timezone.utc) - timedelta(days=7)
+            ).isoformat()
             for r in expiring:
                 exists = (
                     supabase_admin.table("notifications")
                     .select("id")
                     .eq("type", "warranty_expiring")
-                    .eq("machine_id", r.machine_id)
+                    .eq("entity_type", "warranty")
+                    .eq("entity_id", r.id)
                     .gte("created_at", seven_days_ago)
                     .execute()
                 )
                 if exists.data:
                     continue
-                supabase_admin.table("notifications").insert({
-                    "type": "warranty_expiring",
-                    "machine_id": r.machine_id,
-                    "title": f"Warranty expiring for {r.serial_number}",
-                    "message": (
+                notify_admins(
+                    title=f"Warranty expiring for {r.serial_number}",
+                    message=(
                         f"Warranty for machine {r.serial_number or r.machine_id} "
                         f"expires on {r.end_date.isoformat()} "
-                        f"({(r.days_remaining or 0)} days)."
+                        f"({r.days_remaining or 0} days)."
                     ),
-                    "read": False,
-                    "created_at": _now_iso(),
-                }).execute()
+                    notification_type="warranty_expiring",
+                    entity_type="warranty",
+                    entity_id=r.id,
+                )
         except Exception:
-            # Notifications schema may not match — don't fail the endpoint.
+            # Don't fail the endpoint if notification dispatch fails.
             pass
 
         return [

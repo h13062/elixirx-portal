@@ -31,15 +31,26 @@ A full-stack sales operations platform for Core Pacific Inc.'s ElixirX hydrogen 
 - Friendly identifier lookup (UUID, SKU, or name accepted on all endpoints)
 - Low stock alerts with configurable thresholds
 
-### Sprint 3 — Machine Lifecycle & Warranty (In Progress)
+### Sprint 3 — Machine Lifecycle, Warranty, Notifications (In Progress)
+
+Backend (3.1–3.5, complete):
 - Machine status transitions: Available → Reserved → Ordered → Sold → Delivered → Returned
-- Every status change logged with who/when/why
-- Force override for admin with audit trail
-- Warranty tracking with creation, extension, and PDF certificate generation
+- Every status change logged with who/when/why; admin force override with `FORCED:` reason prefix
+- Warranty tracking with creation, extension, and PDF certificate generation (fpdf2)
 - Warranty dashboard: active, expiring soon (30 days), expired counts
 - Reservation workflow: rep requests → admin approves/denies → 7-day countdown → auto-expiry
-- Machine issue tracking with priority levels (Low/Medium/High/Urgent)
-- Issue resolution workflow with admin notes
+- Machine issue tracking with priority levels (Low/Medium/High/Urgent) and resolution notes
+- In-app notifications with `notify_admins` / `notify_user` helpers wired into reservation, warranty, and issue events
+
+Frontend (3.6–3.7, complete):
+- Inventory page redesigned with three tabs (Machines / Filters / Consumables)
+- Machine Detail page with full lifecycle UI: status-change, reserve, deny-reservation, warranty set/extend, issue report, status-history and issues tabs
+- Auto-prompt for warranty setup when transitioning a machine to `delivered`
+- Soft delete (deactivate) for products and flavors; hard delete for machines with validation chain
+- Frontend Supabase client with `autoRefreshToken`; `fetchWithAuth` retries on 401 and redirects to `/login` if refresh fails
+- `apiGetOptional` helper so 404 = "no data" instead of error (warranty / reservation lookups)
+
+Pending: warranty page UI (3.8), reservation page UI (3.9).
 
 ## Project Structure
 
@@ -58,11 +69,12 @@ elixirx-portal/
 │   ├── app/
 │   │   ├── routers/                # HTTP-only adapters (auth, inventory,
 │   │   │                           #   machine_lifecycle, warranty,
-│   │   │                           #   reservations, issues)
+│   │   │                           #   reservations, issues, notifications)
 │   │   ├── services/               # Business logic
 │   │   ├── repositories/           # One class per Supabase table
 │   │   ├── models/                 # Pydantic request/response models
-│   │   ├── core/                   # Auth, Supabase clients, helpers, config
+│   │   ├── core/                   # Auth, Supabase clients, helpers,
+│   │   │                           #   notification_helper, config
 │   │   └── main.py                 # App entrypoint + router registration
 │   ├── tests/                      # pytest suite (markers: sprint1/2/3)
 │   ├── pytest.ini
@@ -191,8 +203,9 @@ Major endpoint groups:
 | `/api/products`, `/api/machines`, `/api/consumable-*`, `/api/supplement-flavors` | Inventory |
 | `/api/machines/{id}/status`, `/api/machines/status-summary`, `/api/machines/bulk-status` | Machine lifecycle |
 | `/api/warranty/*` | Warranty CRUD, dashboard, PDF certificates |
-| `/api/reservations/*` | Reservation request / approve / deny / cancel |
+| `/api/reservations/*` | Reservation request / approve / deny / cancel / expire |
 | `/api/issues/*` | Machine issue reporting and resolution |
+| `/api/notifications/*` | In-app notifications: list, mark read, broadcast |
 
 ## Documentation
 

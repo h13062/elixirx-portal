@@ -320,3 +320,59 @@ class TestConsumableBatches:
         data = response.json()
         assert "summary" in data
         assert "batches" in data
+
+
+# ─── Sprint 3 Task 3.6 — DELETE /api/machines/{identifier} ──────────────────
+
+
+class TestDeleteMachine:
+    def _get_rx_product_id(self, client, headers):
+        products = client.get("/api/products", headers=headers).json()
+        rx = next(p for p in products if p["name"] == "RX Machine")
+        return rx["id"]
+
+    @pytest.mark.sprint3_6
+    def test_delete_available_machine(self, client, admin_headers):
+        """Admin can delete an available machine"""
+        product_id = self._get_rx_product_id(client, admin_headers)
+        serial = unique_id("RX")
+        client.post("/api/machines", headers=admin_headers, json={
+            "serial_number": serial, "product_id": product_id,
+            "batch_number": "BATCH", "manufacture_date": "2026-01-15"
+        })
+        response = client.delete(f"/api/machines/{serial}", headers=admin_headers)
+        assert response.status_code == 200, f"Delete failed: {response.json()}"
+        # Verify machine is gone
+        check = client.get(f"/api/machines/{serial}", headers=admin_headers)
+        assert check.status_code == 404
+
+    @pytest.mark.sprint3_6
+    def test_cannot_delete_delivered_machine(self, client, admin_headers):
+        """Cannot delete a delivered machine"""
+        product_id = self._get_rx_product_id(client, admin_headers)
+        serial = unique_id("RX")
+        client.post("/api/machines", headers=admin_headers, json={
+            "serial_number": serial, "product_id": product_id,
+            "batch_number": "BATCH", "manufacture_date": "2026-01-15"
+        })
+        client.put(
+            f"/api/machines/{serial}/status",
+            headers=admin_headers,
+            json={"new_status": "delivered", "reason": "Test", "force": True},
+        )
+        response = client.delete(f"/api/machines/{serial}", headers=admin_headers)
+        assert response.status_code == 400, (
+            f"Expected 400, got {response.status_code}: {response.json()}"
+        )
+
+    @pytest.mark.sprint3_6
+    def test_rep_cannot_delete_machine(self, client, rep_headers, admin_headers):
+        """Rep cannot delete machines"""
+        product_id = self._get_rx_product_id(client, admin_headers)
+        serial = unique_id("RX")
+        client.post("/api/machines", headers=admin_headers, json={
+            "serial_number": serial, "product_id": product_id,
+            "batch_number": "BATCH", "manufacture_date": "2026-01-15"
+        })
+        response = client.delete(f"/api/machines/{serial}", headers=rep_headers)
+        assert response.status_code == 403

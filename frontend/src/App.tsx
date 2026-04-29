@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Leads from './pages/Leads'
 import Customers from './pages/Customers'
 import Inventory from './pages/Inventory'
+import MachineDetail from './pages/MachineDetail'
 import Orders from './pages/Orders'
 import Commissions from './pages/Commissions'
 import Tickets from './pages/Tickets'
@@ -53,6 +54,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><Inventory /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/machines/:identifier"
+            element={
+              <ProtectedRoute>
+                <Layout><MachineDetail /></Layout>
               </ProtectedRoute>
             }
           />

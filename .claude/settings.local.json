@@ -5,7 +5,8 @@
       "Bash(npm --version)",
       "Bash(npm create:*)",
       "Bash(npm install:*)",
-      "Bash(venv/Scripts/pip install:*)"
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(npx vite *)"
     ]
   }
 }

@@ -451,3 +451,35 @@ class IssueSummary(BaseModel):
     total: int = 0
     by_priority: IssueSummaryByPriority
     recent_urgent: list[RecentUrgentIssue]
+
+
+# ---------------------------------------------------------------------------
+# Notifications (Sprint 3 Task 3.5)
+# ---------------------------------------------------------------------------
+
+class NotificationResponse(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    message: str
+    type: str
+    entity_type: Optional[str] = None
+    entity_id: Optional[str] = None
+    is_read: bool
+    created_at: datetime
+
+
+class NotificationCreateRequest(BaseModel):
+    user_id: str
+    title: str
+    message: str
+    type: Optional[str] = "general"
+    entity_type: Optional[str] = None
+    entity_id: Optional[str] = None
+
+
+class NotificationBroadcastRequest(BaseModel):
+    title: str
+    message: str
+    type: Optional[str] = "general"
+    role_filter: Optional[str] = "all"  # "admin" | "rep" | "all"
