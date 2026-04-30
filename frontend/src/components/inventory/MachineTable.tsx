@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react'
+import { Trash2, CalendarPlus } from 'lucide-react'
 import './MachineTable.css'
 import type { Machine } from './types'
 
@@ -7,6 +7,7 @@ interface Props {
   loading: boolean
   onRowClick?: (machine: Machine) => void
   onDelete?: (machine: Machine) => void
+  onReserve?: (machine: Machine) => void
 }
 
 const COLUMNS = ['Serial Number', 'Type', 'Batch', 'Mfg Date', 'Status', 'Linked To'] as const
@@ -47,7 +48,9 @@ function SkeletonRows({ extraCol }: { extraCol?: boolean }) {
   )
 }
 
-export default function MachineTable({ machines, loading, onRowClick, onDelete }: Props) {
+export default function MachineTable({ machines, loading, onRowClick, onDelete, onReserve }: Props) {
+  const showActionsCol = !!(onDelete || onReserve)
+  const colSpan = showActionsCol ? 7 : 6
   return (
     <div className="machine-table-wrap">
       <table className="machine-table">
@@ -56,16 +59,16 @@ export default function MachineTable({ machines, loading, onRowClick, onDelete }
             {COLUMNS.map(col => (
               <th key={col}>{col}</th>
             ))}
-            {onDelete && <th className="machine-actions-col"></th>}
+            {showActionsCol && <th className="machine-actions-col"></th>}
           </tr>
         </thead>
 
         <tbody>
           {loading ? (
-            <SkeletonRows extraCol={!!onDelete} />
+            <SkeletonRows extraCol={showActionsCol} />
           ) : machines.length === 0 ? (
             <tr>
-              <td colSpan={onDelete ? 7 : 6} className="machine-empty">
+              <td colSpan={colSpan} className="machine-empty">
                 No machines registered yet
               </td>
             </tr>
@@ -118,19 +121,37 @@ export default function MachineTable({ machines, loading, onRowClick, onDelete }
                     <span className="machine-muted">—</span>
                   </td>
 
-                  {/* Delete action (admin only — when prop provided) */}
-                  {onDelete && (
+                  {/* Per-row actions (Reserve for any user when machine is
+                      available, Delete for admin when prop provided) */}
+                  {showActionsCol && (
                     <td className="machine-actions-col">
-                      <button
-                        className="machine-delete-btn"
-                        title="Remove machine"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDelete(machine)
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="machine-actions-cluster">
+                        {onReserve && machine.status === 'available' && (
+                          <button
+                            className="machine-reserve-btn"
+                            title="Reserve machine"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onReserve(machine)
+                            }}
+                          >
+                            <CalendarPlus size={12} />
+                            Reserve
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            className="machine-delete-btn"
+                            title="Remove machine"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onDelete(machine)
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>

@@ -242,17 +242,17 @@ export default function MachineDetail() {
     setError(null)
     setNotFound(false)
     try {
-      // Full-detail + issues — these SHOULD return 200; treat anything else
-      // as a real error. Issues failing in particular shouldn't kill the page.
+      // Full-detail is required; issues use the optional pattern (404 → [],
+      // any other failure is logged but doesn't block the page).
       const [d, issuesRes] = await Promise.all([
         apiGet<FullDetail>(`/api/machines/${identifier}/full-detail`, access_token),
-        apiGet<Issue[]>(`/api/issues/machine/${identifier}`, access_token).catch((e) => {
-          console.error('Issues fetch failed:', e)
+        apiGetOptional<Issue[]>(`/api/issues/machine/${identifier}`, access_token).catch((e) => {
+          console.error('Issues fetch error:', e)
           return [] as Issue[]
         }),
       ])
       setDetail(d)
-      setIssues(issuesRes || [])
+      setIssues(issuesRes ?? [])
 
       // Warranty: 404 = "no warranty yet" (expected). 500/network = real error
       // — log it but don't block the page; the card will show "No warranty set".

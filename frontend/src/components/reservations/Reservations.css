@@ -1,0 +1,715 @@
+/* ─── Reservations (Sprint 3.9) ─────────────────────────────────────── */
+
+.rsv-tab {
+  color: var(--text-primary, #F8FAFC);
+}
+
+/* ─── Error banner ──────────────────────────────────────────────────── */
+
+.rsv-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #FCA5A5;
+  font-size: 13px;
+}
+.rsv-error-retry {
+  margin-left: auto;
+  background: none;
+  color: #F8FAFC;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ─── Summary cards ─────────────────────────────────────────────────── */
+
+.rsv-summary-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.rsv-card {
+  flex: 1 1 220px;
+  min-width: 220px;
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rsv-card-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #64748B;
+  text-transform: uppercase;
+}
+
+.rsv-card-count {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.rsv-card-sub {
+  font-size: 10px;
+  color: #64748B;
+}
+
+/* ─── Expiring soon alert ───────────────────────────────────────────── */
+
+.rsv-expiring-alert {
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.rsv-expiring-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #F59E0B;
+  margin-bottom: 10px;
+}
+
+.rsv-expiring-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rsv-expiring-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr 110px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 4px;
+  border-bottom: 1px dashed rgba(245, 158, 11, 0.15);
+  font-size: 12px;
+}
+.rsv-expiring-row:last-child { border-bottom: none; }
+
+.rsv-expiring-for { color: #CBD5E1; }
+.rsv-expiring-by  { color: #94A3B8; }
+.rsv-expiring-hours {
+  color: #F59E0B;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+/* ─── Sub-tabs (All Reservations | By Account) ──────────────────────── */
+
+.rsv-subtabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-color, #1E293B);
+  padding-bottom: 10px;
+}
+
+.rsv-subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.rsv-subtab:hover:not(.rsv-subtab-active) {
+  color: #94A3B8;
+  background: rgba(148, 163, 184, 0.05);
+}
+.rsv-subtab-active {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3B82F6;
+}
+
+.rsv-subtab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  color: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ─── Filter tabs ───────────────────────────────────────────────────── */
+
+.rsv-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.rsv-tab-btn {
+  background: none;
+  border: 1px solid var(--border-color, #1E293B);
+  color: var(--text-secondary, #94A3B8);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  white-space: nowrap;
+}
+.rsv-tab-btn:hover {
+  color: #CBD5E1;
+}
+.rsv-tab-active {
+  border-color: #3B82F6;
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3B82F6;
+}
+
+.rsv-count-line {
+  font-size: 12px;
+  color: #64748B;
+  margin: 8px 0 12px;
+}
+.rsv-count-line strong { color: #CBD5E1; }
+.rsv-refresh-dot { color: #3B82F6; }
+
+/* ─── Table ─────────────────────────────────────────────────────────── */
+
+.rsv-table-wrap {
+  background: #0F172A;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.rsv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.rsv-table thead th {
+  background: #111827;
+  color: #64748B;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid #1E293B;
+  white-space: nowrap;
+}
+.rsv-th-right { text-align: right !important; }
+
+.rsv-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #1E293B;
+  color: #CBD5E1;
+  vertical-align: middle;
+}
+
+.rsv-table tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.015);
+}
+.rsv-table tbody tr.rsv-row:hover td {
+  background: rgba(59, 130, 246, 0.04);
+}
+.rsv-table tbody tr:last-child td { border-bottom: none; }
+
+.rsv-empty {
+  text-align: center;
+  padding: 36px 14px !important;
+  color: #64748B;
+  font-size: 13px;
+}
+.rsv-empty > div { margin-top: 8px; }
+
+.rsv-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.rsv-muted { color: #64748B; }
+
+.rsv-link {
+  background: none;
+  border: none;
+  color: #F8FAFC;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+.rsv-link:hover { color: #3B82F6; text-decoration: underline; }
+.rsv-link:disabled { color: #64748B; cursor: default; text-decoration: none; }
+
+.rsv-cell-for { color: #F8FAFC; }
+.rsv-cell-by  { color: #94A3B8; }
+.rsv-cell-rel { color: #94A3B8; white-space: nowrap; }
+
+.rsv-cell-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.rsv-cell-actions .rsv-btn + .rsv-btn { margin-left: 6px; }
+
+.rsv-inline-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+/* ─── Type badge ────────────────────────────────────────────────────── */
+
+.rsv-type-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+.rsv-type-rx {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60A5FA;
+}
+.rsv-type-ro {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22D3EE;
+}
+
+/* ─── Status pill ───────────────────────────────────────────────────── */
+
+.rsv-status {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+.rsv-status-pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+.rsv-status-approved {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10B981;
+}
+.rsv-status-denied {
+  background: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+}
+.rsv-status-expired {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94A3B8;
+}
+.rsv-status-cancelled {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94A3B8;
+}
+.rsv-status-converted {
+  background: rgba(168, 85, 247, 0.12);
+  color: #C084FC;
+}
+
+/* When a reservation is on the machine, this is also styleable. */
+.rsv-status-available {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10B981;
+}
+.rsv-status-reserved {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+
+/* ─── Countdown ─────────────────────────────────────────────────────── */
+
+.rsv-countdown {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.rsv-countdown-green { color: #10B981; }
+.rsv-countdown-amber { color: #F59E0B; }
+.rsv-countdown-red   { color: #EF4444; }
+
+/* ─── Buttons ───────────────────────────────────────────────────────── */
+
+.rsv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.rsv-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.rsv-btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+.rsv-btn-xs {
+  padding: 3px 8px;
+  font-size: 10px;
+}
+
+.rsv-btn-primary {
+  background: #3B82F6;
+  color: #fff;
+}
+.rsv-btn-primary:hover:not(:disabled) {
+  background: #2563EB;
+}
+
+.rsv-btn-success {
+  background: #10B981;
+  color: #fff;
+}
+.rsv-btn-success:hover:not(:disabled) {
+  background: #059669;
+}
+
+.rsv-btn-danger {
+  background: #EF4444;
+  color: #fff;
+}
+.rsv-btn-danger:hover:not(:disabled) {
+  background: #DC2626;
+}
+
+.rsv-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-color, #1E293B);
+  color: #94A3B8;
+}
+.rsv-btn-ghost:hover:not(:disabled) {
+  color: #F8FAFC;
+  border-color: #475569;
+}
+
+/* ─── Modal ─────────────────────────────────────────────────────────── */
+
+.rsv-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.rsv-modal {
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  padding: 20px 22px;
+  width: 100%;
+  max-width: 450px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.rsv-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #F8FAFC;
+}
+
+.rsv-modal-sub {
+  margin: 0;
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+.rsv-modal-meta-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.rsv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rsv-field > span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+.rsv-field > span em {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #475569;
+  font-weight: 500;
+  margin-left: 4px;
+}
+.rsv-field input,
+.rsv-field textarea {
+  background: #020617;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  color: #F8FAFC;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+.rsv-field input:focus,
+.rsv-field textarea:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.rsv-form-error {
+  font-size: 12px;
+  color: #FCA5A5;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.rsv-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ─── Sortable column headers ───────────────────────────────────────── */
+
+.rsv-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+.rsv-th-sortable:hover {
+  color: #F8FAFC !important;
+}
+.rsv-th-active {
+  color: #3B82F6 !important;
+}
+.rsv-th-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Rep filter dropdown ───────────────────────────────────────────── */
+
+.rsv-rep-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.rsv-rep-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748B;
+}
+
+.rsv-rep-filter-select {
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  color: #F8FAFC;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 220px;
+  cursor: pointer;
+}
+.rsv-rep-filter-select:focus {
+  outline: none;
+  border-color: #3B82F6;
+}
+
+.rsv-rep-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 1px solid var(--border-color, #1E293B);
+  border-radius: 6px;
+  color: #94A3B8;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.rsv-rep-clear:hover {
+  color: #EF4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ─── Account cards (By Account view) ───────────────────────────────── */
+
+.rsv-by-account-loading,
+.rsv-by-account-empty {
+  padding: 36px 14px !important;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  background: #0F172A;
+}
+
+.rsv-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.rsv-account-card {
+  background: #111827;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rsv-account-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.rsv-account-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #F8FAFC;
+  margin-bottom: 2px;
+}
+
+.rsv-account-email {
+  font-size: 12px;
+  color: #64748B;
+  word-break: break-word;
+}
+
+.rsv-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rsv-tier-distributor {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60A5FA;
+}
+.rsv-tier-agent {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22D3EE;
+}
+.rsv-tier-master {
+  background: rgba(168, 85, 247, 0.15);
+  color: #C084FC;
+}
+.rsv-tier-unknown {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94A3B8;
+}
+
+.rsv-account-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 14px;
+}
+
+.rsv-account-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.08);
+  padding-bottom: 4px;
+}
+
+.rsv-account-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748B;
+  font-weight: 600;
+}
+
+.rsv-account-stat-value {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rsv-stat-total    { color: #F8FAFC; }
+.rsv-stat-pending  { color: #F59E0B; }
+.rsv-stat-approved { color: #10B981; }
+.rsv-stat-denied   { color: #EF4444; }
+.rsv-stat-expired  { color: #94A3B8; }
+
+.rsv-rate-good { color: #10B981; }
+.rsv-rate-warn { color: #F59E0B; }
+.rsv-rate-bad  { color: #EF4444; }
+
+.rsv-account-view-btn {
+  width: 100%;
+  justify-content: center;
+}

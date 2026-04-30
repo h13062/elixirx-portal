@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import './Inventory.css'
 import '../components/inventory/ConsumableStockSection.css'
 import { useAuth } from '../lib/auth'
-import { apiGet, apiDelete, apiPut } from '../lib/api'
+import { apiGet, apiDelete, apiPut, apiPostAuth } from '../lib/api'
 import FilterBar from '../components/inventory/FilterBar'
 import MachineTable from '../components/inventory/MachineTable'
 import StockModal from '../components/inventory/StockModal'
-import { X, Loader2, Plus, Package, Filter as FilterIcon, Beaker, Trash2, Pencil } from 'lucide-react'
+import { X, Loader2, Plus, Package, Filter as FilterIcon, Beaker, Trash2, Pencil, CalendarCheck } from 'lucide-react'
 import ConfirmModal from '../components/ConfirmModal'
+import ReserveMachineModal from '../components/reservations/ReserveMachineModal'
+import ReservationsTab from '../components/reservations/ReservationsTab'
 import type {
   Machine,
   ConsumableStock,
@@ -116,12 +118,11 @@ function formatStockDate(updatedAt: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-type InventoryTab = 'machines' | 'filters' | 'consumables'
+type InventoryTab = 'machines' | 'filters' | 'consumables' | 'reservations'
 
 export default function Inventory() {
   const { user, access_token } = useAuth()
   const navigate = useNavigate()
-  const BASE_URL = import.meta.env.VITE_API_URL as string
 
   const [activeTab, setActiveTab] = useState<InventoryTab>('machines')
 
@@ -171,6 +172,17 @@ export default function Inventory() {
   const [productForm, setProductForm]       = useState<AddProductForm>(BLANK_PRODUCT_FORM)
   const [productSaving, setProductSaving]   = useState(false)
   const [productError, setProductError]     = useState<string | null>(null)
+
+  // Reserve modal (Machines tab → per-row Reserve button)
+  const [reserveTarget, setReserveTarget] = useState<Machine | null>(null)
+
+  // Active reservations count (pending + approved) — driven by ReservationsTab
+  // and shown on the tab badge.
+  const [activeReservationCount, setActiveReservationCount] = useState(0)
+  const handleActiveCountChange = useCallback(
+    (count: number) => setActiveReservationCount(count),
+    [],
+  )
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
@@ -345,15 +357,7 @@ export default function Inventory() {
       if (flavorForm.default_price) body.default_price = Number(flavorForm.default_price)
       if (flavorForm.sort_order) body.sort_order = Number(flavorForm.sort_order)
 
-      const res = await fetch(`${BASE_URL}/api/supplement-flavors`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access_token}` },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.detail || `Error ${res.status}`)
-      }
+      await apiPostAuth('/api/supplement-flavors', body, access_token!)
       setShowAddFlavor(false)
       setFlavorForm(BLANK_FLAVOR_FORM)
       await fetchFlavors()
@@ -387,15 +391,7 @@ export default function Inventory() {
       }
       if (productForm.description.trim()) body.description = productForm.description.trim()
 
-      const res = await fetch(`${BASE_URL}/api/products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access_token}` },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.detail || `Error ${res.status}`)
-      }
+      await apiPostAuth('/api/products', body, access_token!)
       setShowAddProduct(false)
       setProductForm(BLANK_PRODUCT_FORM)
       await Promise.all([fetchStock(), fetchProducts()])
@@ -511,19 +507,7 @@ export default function Inventory() {
       if (derivedMachineType) body.machine_type = derivedMachineType
       if (formData.notes.trim()) body.notes = formData.notes.trim()
 
-      const res = await fetch(`${BASE_URL}/api/machines`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${access_token}`,
-        },
-        body: JSON.stringify(body),
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.detail || data?.message || `Error ${res.status}`)
-      }
+      await apiPostAuth('/api/machines', body, access_token!)
 
       showToast(`Machine ${formData.serial_number.trim()} registered successfully`, 'success')
       setFormData(BLANK_FORM)
@@ -562,6 +546,15 @@ export default function Inventory() {
           onClick={() => setActiveTab('consumables')}
         >
           <Beaker size={14} /> Consumables
+        </button>
+        <button
+          className={`inv-tab${activeTab === 'reservations' ? ' inv-tab-active' : ''}`}
+          onClick={() => setActiveTab('reservations')}
+        >
+          <CalendarCheck size={14} /> Reservations
+          {activeReservationCount > 0 && (
+            <span className="inv-tab-badge">{activeReservationCount}</span>
+          )}
         </button>
       </div>
 
@@ -743,8 +736,19 @@ export default function Inventory() {
         loading={machinesLoading}
         onRowClick={(m) => navigate(`/machines/${m.serial_number}`)}
         onDelete={isAdmin ? (m) => setDeleteTarget({ kind: 'machine', serial: m.serial_number }) : undefined}
+        onReserve={(m) => setReserveTarget(m)}
       />
       </>
+      )}
+
+      {activeTab === 'reservations' && user && (
+        <ReservationsTab
+          currentUserId={user.id}
+          isAdmin={isAdmin}
+          token={access_token!}
+          showToast={showToast}
+          onActiveCountChange={handleActiveCountChange}
+        />
       )}
 
       {/* ── Consumable Stock Section (Filters / Consumables tabs) ── */}
@@ -1136,6 +1140,24 @@ export default function Inventory() {
           confirmKind="danger"
           onConfirm={performDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* Reserve Machine modal — opened from MachineTable rows */}
+      {reserveTarget && access_token && (
+        <ReserveMachineModal
+          identifier={reserveTarget.serial_number}
+          serial={reserveTarget.serial_number}
+          machineType={reserveTarget.machine_type}
+          currentStatus={reserveTarget.status}
+          token={access_token}
+          onClose={() => setReserveTarget(null)}
+          onCreated={() => {
+            setReserveTarget(null)
+            showToast('Reservation submitted! Awaiting admin approval.', 'success')
+            // Refresh machine list so any backend-side state shifts are visible.
+            fetchMachines(typeFilter)
+          }}
         />
       )}
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { X, Pencil, Trash2, Package } from 'lucide-react'
 import './StockModal.css'
 import type { ConsumableStock, ConsumableBatch, SupplementFlavor } from './types'
+import { apiGet, apiPostAuth, apiPut, apiDelete } from '../../lib/api'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,8 +83,6 @@ export default function StockModal({
   onClose,
   onStockUpdated,
 }: StockModalProps) {
-  const BASE_URL = import.meta.env.VITE_API_URL as string
-
   const isSupplementMain = !flavor && product.product_name.toLowerCase().includes('supplement')
 
   // ── Batch data ──
@@ -123,9 +122,6 @@ export default function StockModal({
   const [alertSaving, setAlertSaving] = useState(false)
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
 
-  // ── Product info editing ──
-  const [editingInfo, setEditingInfo] = useState(false)
-
   // ── Toast ──
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -139,18 +135,17 @@ export default function StockModal({
     setBatchesLoading(true)
     try {
       const params = new URLSearchParams({ product_id: product.product_id })
-      const res = await fetch(`${BASE_URL}/api/consumable-batches?${params}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      if (!res.ok) throw new Error('Failed to load batches')
-      const data: ConsumableBatch[] = await res.json()
+      const data = await apiGet<ConsumableBatch[]>(
+        `/api/consumable-batches?${params}`,
+        accessToken,
+      )
       setBatches(data)
     } catch {
       // Keep empty
     } finally {
       setBatchesLoading(false)
     }
-  }, [BASE_URL, accessToken, product.product_id])
+  }, [accessToken, product.product_id])
 
   useEffect(() => {
     fetchBatches()
@@ -192,15 +187,7 @@ export default function StockModal({
       if (addForm.expiry_date) body.expiry_date = addForm.expiry_date
       if (addForm.notes.trim()) body.notes = addForm.notes.trim()
 
-      const res = await fetch(`${BASE_URL}/api/consumable-batches`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.detail || `Error ${res.status}`)
-      }
+      await apiPostAuth('/api/consumable-batches', body, accessToken)
       setAddForm({ ...BLANK_ADD, flavor_id: flavor?.id ?? '' })
       setShowAdd(false)
       await fetchBatches()
@@ -224,19 +211,15 @@ export default function StockModal({
     setShipSaving(true)
     setShipError(null)
     try {
-      const res = await fetch(`${BASE_URL}/api/consumable-batches/${batchId}/ship`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({
+      await apiPostAuth(
+        `/api/consumable-batches/${batchId}/ship`,
+        {
           quantity_to_ship: Number(shipForm.quantity_to_ship),
           shipped_date: shipForm.shipped_date,
           shipped_to: shipForm.shipped_to.trim(),
-        }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.detail || `Error ${res.status}`)
-      }
+        },
+        accessToken,
+      )
       setShippingId(null)
       setShipForm(BLANK_SHIP)
       await fetchBatches()
@@ -267,15 +250,7 @@ export default function StockModal({
         notes: editNotes || undefined,
         expiry_date: editExpiry || undefined,
       }
-      const res = await fetch(`${BASE_URL}/api/consumable-batches/${batchId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.detail || `Error ${res.status}`)
-      }
+      await apiPut(`/api/consumable-batches/${batchId}`, body, accessToken)
       setEditingId(null)
       await fetchBatches()
       showToast('Batch updated')
@@ -290,11 +265,7 @@ export default function StockModal({
   async function handleDelete(batchId: string) {
     setDeleteSaving(true)
     try {
-      const res = await fetch(`${BASE_URL}/api/consumable-batches/${batchId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      if (!res.ok) throw new Error('Delete failed')
+      await apiDelete(`/api/consumable-batches/${batchId}`, accessToken)
       setConfirmDeleteId(null)
       await fetchBatches()
       onStockUpdated()
@@ -313,15 +284,7 @@ export default function StockModal({
     try {
       const body: Record<string, unknown> = { alert_enabled: alertEnabled }
       if (alertThreshold !== '') body.min_threshold = Number(alertThreshold)
-      const res = await fetch(`${BASE_URL}/api/consumable-stock/${product.product_id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.detail || 'Failed to save')
-      }
+      await apiPut(`/api/consumable-stock/${product.product_id}`, body, accessToken)
       onStockUpdated()
       setAlertMsg('Saved')
       setTimeout(() => setAlertMsg(null), 2000)

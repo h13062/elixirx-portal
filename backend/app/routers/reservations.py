@@ -31,9 +31,11 @@ from app.core.supabase_client import supabase_admin
 from app.models.inventory_models import (
     ExpiredReservationsResult,
     ExpiringSoonReservation,
+    ReservationByAccount,
     ReservationCreate,
     ReservationDenyRequest,
     ReservationResponse,
+    ReservationsByAccountResponse,
 )
 
 router = APIRouter(prefix="/api", tags=["Reservations"])
@@ -347,6 +349,94 @@ def expiring_soon(current_user: dict = Depends(get_current_user)):
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch expiring reservations: {e}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/reservations/by-account  (static — must come before /{id})
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/reservations/by-account",
+    response_model=ReservationsByAccountResponse,
+)
+def reservations_by_account(current_user: dict = Depends(get_current_user)):
+    """Counts of reservations grouped by reserved_by user, with approval_rate.
+
+    Joins on profiles for full_name / email / tier. Reservations whose
+    reserved_by user is missing from profiles are silently skipped (defensive
+    against orphaned rows after a profile delete).
+    """
+    try:
+        rows = (
+            supabase_admin.table("reservations")
+            .select(
+                "reserved_by, status, "
+                "reserved_by_profile:profiles!reserved_by(full_name, email, tier)"
+            )
+            .execute()
+            .data
+            or []
+        )
+
+        # Aggregate per reserved_by user.
+        agg: dict[str, dict] = {}
+        for r in rows:
+            uid = r.get("reserved_by")
+            if not uid:
+                continue
+            entry = agg.setdefault(uid, {
+                "user_id": uid,
+                "full_name": None,
+                "email": None,
+                "tier": None,
+                "total": 0,
+                "pending": 0,
+                "approved": 0,
+                "denied": 0,
+                "expired": 0,
+                "cancelled": 0,
+                "converted": 0,
+            })
+            profile = r.get("reserved_by_profile") or {}
+            if isinstance(profile, dict):
+                entry["full_name"] = entry["full_name"] or profile.get("full_name")
+                entry["email"] = entry["email"] or profile.get("email")
+                entry["tier"] = entry["tier"] or profile.get("tier")
+
+            entry["total"] += 1
+            status_val = r.get("status")
+            if status_val in entry and status_val != "total":
+                entry[status_val] += 1
+
+        accounts: list[ReservationByAccount] = []
+        for entry in agg.values():
+            total = entry["total"]
+            approval_rate = (
+                round((entry["approved"] + entry["converted"]) / total * 100, 1)
+                if total > 0 else 0.0
+            )
+            accounts.append(ReservationByAccount(
+                user_id=entry["user_id"],
+                full_name=entry["full_name"],
+                email=entry["email"],
+                tier=entry["tier"],
+                total=total,
+                pending=entry["pending"],
+                approved=entry["approved"],
+                denied=entry["denied"],
+                expired=entry["expired"],
+                cancelled=entry["cancelled"],
+                converted=entry["converted"],
+                approval_rate=approval_rate,
+            ))
+
+        accounts.sort(key=lambda a: a.total, reverse=True)
+        return ReservationsByAccountResponse(accounts=accounts)
+    except Exception as e:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch reservations by account: {e}",
         )
 
 

@@ -185,3 +185,37 @@ class TestReservations:
         )
         assert response.status_code == 200, f"Failed: {response.json()}"
         assert isinstance(response.json(), list)
+
+    @pytest.mark.sprint3_9
+    def test_reservations_by_account(self, client, rep_headers, admin_headers):
+        """By-account endpoint returns rep reservation counts"""
+        # Create a reservation as rep first
+        machine = self._create_available_machine(client, admin_headers)
+        client.post("/api/reservations", headers=rep_headers, json={
+            "machine_id": machine["serial_number"],
+            "reserved_for": "Account Test Customer"
+        })
+        response = client.get("/api/reservations/by-account", headers=admin_headers)
+        assert response.status_code == 200, f"by-account failed: {response.json()}"
+        data = response.json()
+        assert "accounts" in data
+        assert len(data["accounts"]) >= 1
+        # Find the rep account
+        rep_account = None
+        for acct in data["accounts"]:
+            if acct["email"] == "minh.tran@example.com":
+                rep_account = acct
+                break
+        assert rep_account is not None, "Rep account not found in results"
+        assert rep_account["total"] >= 1
+        # Sanity: counts add up and approval_rate is in [0, 100]
+        breakdown_sum = (
+            rep_account["pending"]
+            + rep_account["approved"]
+            + rep_account["denied"]
+            + rep_account["expired"]
+            + rep_account["cancelled"]
+            + rep_account["converted"]
+        )
+        assert breakdown_sum == rep_account["total"]
+        assert 0.0 <= rep_account["approval_rate"] <= 100.0

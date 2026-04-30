@@ -1,8 +1,14 @@
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 
-export default function ProtectedRoute({ children }: { children: ReactNode }) {
+interface Props {
+  children: ReactNode
+  /** If set, only these roles may enter; others are redirected to /dashboard. */
+  allowedRoles?: string[]
+}
+
+export default function ProtectedRoute({ children, allowedRoles }: Props) {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -23,6 +29,10 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />
   }
 
   return <>{children}</>

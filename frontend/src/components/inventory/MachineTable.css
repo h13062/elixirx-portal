@@ -47,8 +47,36 @@
 
 /* ── Delete action column ─────────────────────────────────────────── */
 .machine-actions-col {
-  width: 36px;
+  width: auto;
   text-align: right;
+  white-space: nowrap;
+}
+
+.machine-actions-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.machine-reserve-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 6px;
+  color: #60A5FA;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.machine-reserve-btn:hover {
+  background: #3B82F6;
+  color: #fff;
 }
 
 .machine-delete-btn {

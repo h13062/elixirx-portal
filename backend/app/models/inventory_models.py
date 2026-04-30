@@ -365,6 +365,25 @@ class ReservationResponse(BaseModel):
     updated_at: datetime
 
 
+class ReservationByAccount(BaseModel):
+    user_id: str
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    tier: Optional[str] = None
+    total: int
+    pending: int
+    approved: int
+    denied: int
+    expired: int
+    cancelled: int
+    converted: int
+    approval_rate: float
+
+
+class ReservationsByAccountResponse(BaseModel):
+    accounts: list[ReservationByAccount]
+
+
 class ExpiredReservationsResult(BaseModel):
     expired_count: int
     expired_reservations: list[ReservationResponse]
