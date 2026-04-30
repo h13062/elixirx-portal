@@ -17,6 +17,7 @@ One markdown file per sprint:
 | [sprint-0.md](sprint-0.md) | Sprint 0 — Project setup, environment, tooling |
 | [sprint-1.md](sprint-1.md) | Sprint 1 — Auth, database schema, backend foundation |
 | [sprint-2.md](sprint-2.md) | Sprint 2 — Inventory module (products, machines, consumable stock, supplement flavors, batch tracking) |
+| [sprint-3.md](sprint-3.md) | Sprint 3 — Machine lifecycle, warranty, reservations, issues, notifications, frontend auth refresh |
 
 Add a new file (`sprint-N.md`) when a new sprint begins. Copy [TEMPLATE.md](TEMPLATE.md) as the starting point.
 
@@ -146,6 +147,51 @@ Tiny pencil/icon buttons inside a card or row become invisible to users and don'
 - **Fix:** Make the card itself clickable (with a visible hover state) and open a dedicated modal that hosts the full management surface — header, summary stats, related entity tabs, action table, settings.
 - **Prevention:** If the third action you want to add to a card doesn't fit comfortably in the existing layout, move all actions to a modal. Don't keep stacking icon buttons.
 - **See:** Bug 2.4
+
+---
+
+### PostgREST embed syntax — column-named alias vs FK relation
+Embedding a related table over a foreign key uses `<table>(...)` (PostgREST resolves the FK automatically), not `<table>:<column>(...)`. The colon form is only needed when the same target table is referenced by **two or more** FKs on the source row, in which case use `relation!fk_column(...)` to disambiguate.
+- **Symptom:** "Could not find a relationship between 'X' and 'Y' in the schema cache."
+- **Fix:** Use `profiles(full_name)` for a single FK; `reserved_by_profile:profiles!reserved_by(full_name)` and `approved_by_profile:profiles!approved_by(full_name)` for two FKs to the same table.
+- **Prevention:** Grep the destination table's actual column names before writing the select string — `name` vs `full_name` is a one-character bug that compiles and only fails at request time.
+- **See:** Bug 3.2
+
+---
+
+### Silent Postgrest exceptions — never wrap mutations in `try/except: pass`
+A bare `try/except: pass` around a database insert masks both schema mismatches and real outages. The action looks like it succeeded; nothing actually wrote.
+- **Symptom:** Tests pass, manual flows look fine, but downstream consumers (admins, dashboards) see nothing.
+- **Fix:** Always log the exception, even when the action is best-effort. Route writes that come from many call sites through a single helper so the logging happens in one place.
+- **Prevention:** Code review red flag: any `except Exception: pass` next to a `.insert()` or `.update()`. Promote it to `except Exception as e: logger.exception(...)`.
+- **See:** Bug 3.5
+
+---
+
+### 404 = "no record yet," not "error"
+Endpoints that lookup-by-key for an entity that may not exist yet (warranty for a machine, reservation for a machine, profile by email) return 404 by HTTP convention. The frontend must distinguish that 404 from a 500 / network failure.
+- **Symptom:** A red error banner appears on a page that's actually working — the user just hasn't created the related record yet.
+- **Fix:** Use `apiGetOptional<T>()` from `frontend/src/lib/api.ts` — returns `null` on 404, throws on every other non-OK status.
+- **Prevention:** On every `GET /resource/lookup-key/{key}` route, decide whether 404 is a normal state. If yes, document it and verify the frontend uses `apiGetOptional` rather than `apiGet`.
+- **See:** Bug 3.6
+
+---
+
+### Auth wrapper coverage — migrate every call site in the same PR
+When introducing a wrapper meant to be the canonical entry point for a class of calls (auth, caching, telemetry), the success criterion is **zero direct calls to the underlying primitive outside the wrapper file**.
+- **Symptom:** A bug that's "fixed" still reproduces on certain pages — because those pages still call the underlying primitive directly.
+- **Fix:** Project-wide `grep -rn 'await fetch' frontend/src` after introducing the wrapper. Convert every match outside `lib/api.ts`. Don't leave "I'll migrate the rest later" comments.
+- **Prevention:** Bake the grep into the PR description as a verification step. Code review red flag: any direct `fetch()` call in a page or component that includes an `Authorization` header.
+- **See:** Bug 3.7, Bug 3.8
+
+---
+
+### Cross-router static priority — `include_router` order matters when prefixes overlap
+Sprint 2 Bug 2.8 was about static-before-dynamic **within** a router. Sprint 3 Bug 3.9 extends the same rule to **across** routers: when two routers share a path prefix and one owns a `{param}` route at that prefix, the static-route router must be `app.include_router()`'d first.
+- **Symptom:** A literal path returns the same UUID-parse error you'd get from passing a non-UUID to a dynamic route — but the route is in a different router.
+- **Fix:** Reorder the `include_router` calls so static-route routers come first. Or give static endpoints a more specific sub-prefix that can't collide.
+- **Prevention:** When adding a new router, list every prefix it overlaps with and verify the `include_router` order. Better: design URL prefixes to be non-overlapping by construction.
+- **See:** Bug 3.9, Bug 2.8
 
 ---
 
