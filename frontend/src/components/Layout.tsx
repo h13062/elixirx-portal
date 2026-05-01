@@ -18,9 +18,11 @@ import {
   LogOut,
   Sun,
   Moon,
+  AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../context/ThemeContext'
+import { apiGet } from '../lib/api'
 import './Layout.css'
 
 const ROUTE_TITLES: Record<string, string> = {
@@ -29,6 +31,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/customers': 'Customers',
   '/inventory': 'Inventory',
   '/orders': 'Orders',
+  '/issues': 'Issues',
   '/commissions': 'Commissions',
   '/tickets': 'Tickets',
   '/warranty': 'Warranty',
@@ -42,6 +45,7 @@ const NAV_ITEMS = [
   { path: '/customers', label: 'Customers', icon: Users },
   { path: '/inventory', label: 'Inventory', icon: Package },
   { path: '/orders', label: 'Orders', icon: ClipboardList },
+  { path: '/issues', label: 'Issues', icon: AlertTriangle, badgeKey: 'issues' as const },
   { path: '/commissions', label: 'Commissions', icon: DollarSign },
 ]
 
@@ -62,7 +66,7 @@ function getInitials(name: string) {
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth()
+  const { user, logout, access_token } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
@@ -72,6 +76,33 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
   const pageTitle = ROUTE_TITLES[location.pathname] ?? 'Portal'
   const initials = user?.full_name ? getInitials(user.full_name) : '?'
+
+  // Sidebar issue badge — count of urgent/high open issues. We use the
+  // summary endpoint's `recent_urgent` field, which is bounded at 10. If the
+  // bound is hit we render "10+" so the user knows it could be more.
+  // The fetch re-runs whenever the route changes (cheap and self-refreshing
+  // when admins move between pages); a more rigorous approach would be a
+  // websocket or polling, but this gets the badge accurate enough.
+  const [urgentBadge, setUrgentBadge] = useState<{ count: number; capped: boolean }>(
+    { count: 0, capped: false },
+  )
+  useEffect(() => {
+    if (!access_token) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const sum = await apiGet<{ recent_urgent: unknown[] }>(
+          '/api/issues/summary', access_token,
+        )
+        if (cancelled) return
+        const list = Array.isArray(sum.recent_urgent) ? sum.recent_urgent : []
+        setUrgentBadge({ count: list.length, capped: list.length >= 10 })
+      } catch {
+        // Best-effort; the badge just stays at its previous value.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [access_token, location.pathname])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -105,16 +136,25 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         {/* Nav */}
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
-            <NavLink
-              key={path}
-              to={path}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-            >
-              <Icon size={18} />
-              <span className="nav-label">{label}</span>
-            </NavLink>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon
+            const showIssueBadge = item.badgeKey === 'issues' && urgentBadge.count > 0
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+              >
+                <Icon size={18} />
+                <span className="nav-label">{item.label}</span>
+                {showIssueBadge && !collapsed && (
+                  <span className="nav-badge">
+                    {urgentBadge.capped ? '10+' : urgentBadge.count}
+                  </span>
+                )}
+              </NavLink>
+            )
+          })}
 
           {isAdmin && (
             <>

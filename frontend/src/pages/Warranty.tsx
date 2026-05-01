@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Shield,
   AlertTriangle,
@@ -84,10 +84,19 @@ function formatDateOnly(d: Date): string {
 
 // ─── Component ────────────────────────────────────────────────────────────
 
+/** Coerce a `?status=...` value to a known warranty StatusFilter. */
+function parseStatus(raw: string | null): StatusFilter {
+  if (raw === 'active' || raw === 'expiring_soon' || raw === 'expired') return raw
+  return 'all'
+}
+
 export default function Warranty() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user, access_token } = useAuth()
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+
+  const urlStatus = searchParams.get('status')
 
   // Route guard — sidebar already hides it for reps, but defend in depth.
   useEffect(() => {
@@ -104,8 +113,14 @@ export default function Warranty() {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseStatus(urlStatus))
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+
+  // React to `?status=...` changes after mount (e.g. user clicks a different
+  // dashboard card without unmounting the page).
+  useEffect(() => {
+    setStatusFilter(parseStatus(urlStatus))
+  }, [urlStatus])
 
   const [extendTarget, setExtendTarget] = useState<Warranty | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)

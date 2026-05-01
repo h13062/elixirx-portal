@@ -12,6 +12,7 @@ import MachineDetail from './pages/MachineDetail'
 import Orders from './pages/Orders'
 import Commissions from './pages/Commissions'
 import Tickets from './pages/Tickets'
+import Issues from './pages/Issues'
 import Warranty from './pages/Warranty'
 import UserManagement from './pages/UserManagement'
 import SettingsPage from './pages/SettingsPage'
@@ -86,6 +87,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><Tickets /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/issues"
+            element={
+              <ProtectedRoute>
+                <Layout><Issues /></Layout>
               </ProtectedRoute>
             }
           />

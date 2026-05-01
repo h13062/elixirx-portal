@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import './Inventory.css'
 import '../components/inventory/ConsumableStockSection.css'
 import { useAuth } from '../lib/auth'
@@ -120,16 +120,44 @@ function formatStockDate(updatedAt: string): string {
 
 type InventoryTab = 'machines' | 'filters' | 'consumables' | 'reservations'
 
+/** Coerces a URL `?tab=` value to a known InventoryTab; falls back to 'machines'. */
+function parseTab(raw: string | null): InventoryTab {
+  if (raw === 'machines' || raw === 'filters' || raw === 'consumables' || raw === 'reservations') {
+    return raw
+  }
+  return 'machines'
+}
+
 export default function Inventory() {
   const { user, access_token } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [activeTab, setActiveTab] = useState<InventoryTab>('machines')
+  // URL-driven initial tab/filter state. Reading once at mount keeps the
+  // initial render correct without a flash of the default 'machines' tab.
+  const tabParam    = searchParams.get('tab')
+  const statusParam = searchParams.get('status')
+  const alertParam  = searchParams.get('alert')
+
+  const [activeTab, setActiveTab] = useState<InventoryTab>(() => parseTab(tabParam))
+
+  // Whether the low-stock alert filter is currently engaged. Drives the
+  // banner at the top of the Filters/Consumables tabs and the visual glow
+  // on cards whose quantity < min_threshold.
+  const [lowStockAlert, setLowStockAlert] = useState<boolean>(alertParam === 'low_stock')
 
   const [allMachines, setAllMachines]         = useState<Machine[]>([])
   const [consumableStock, setConsumableStock] = useState<ConsumableStock[]>([])
   const [flavors, setFlavors]                 = useState<SupplementFlavor[]>([])
-  const [statusFilter, setStatusFilter]       = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter]       = useState<StatusFilter>(() => {
+    // Only honor `status` here when the initial tab is `machines` — the same
+    // param has different meaning on the reservations tab and is read there.
+    if (parseTab(tabParam) !== 'machines') return 'all'
+    const allowed = ['all', 'available', 'reserved', 'ordered', 'sold', 'delivered', 'returned']
+    return (statusParam && allowed.includes(statusParam))
+      ? (statusParam as StatusFilter)
+      : 'all'
+  })
   const [typeFilter, setTypeFilter]           = useState<TypeFilter>('all')
   const [machinesLoading, setMachinesLoading] = useState(true)
   const [stockLoading, setStockLoading]       = useState(true)
@@ -183,6 +211,14 @@ export default function Inventory() {
     (count: number) => setActiveReservationCount(count),
     [],
   )
+
+  // Clear the low-stock alert filter (and strip `alert` from the URL).
+  function clearLowStockAlert() {
+    setLowStockAlert(false)
+    const next = new URLSearchParams(searchParams)
+    next.delete('alert')
+    setSearchParams(next, { replace: true })
+  }
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
@@ -257,6 +293,20 @@ export default function Inventory() {
   }, [access_token])
 
   useEffect(() => { fetchMachines(typeFilter) }, [typeFilter, fetchMachines])
+
+  // React to URL param changes after mount (e.g. user clicks a different
+  // dashboard card without unmounting Inventory).
+  useEffect(() => {
+    const t = parseTab(tabParam)
+    setActiveTab(t)
+    setLowStockAlert(alertParam === 'low_stock')
+    if (t === 'machines') {
+      const allowed = ['all', 'available', 'reserved', 'ordered', 'sold', 'delivered', 'returned']
+      if (statusParam && allowed.includes(statusParam)) {
+        setStatusFilter(statusParam as StatusFilter)
+      }
+    }
+  }, [tabParam, statusParam, alertParam])
   useEffect(() => { fetchStock() }, [fetchStock])
   useEffect(() => { fetchFlavors() }, [fetchFlavors])
   useEffect(() => { fetchProducts() }, [fetchProducts])
@@ -754,6 +804,17 @@ export default function Inventory() {
       {/* ── Consumable Stock Section (Filters / Consumables tabs) ── */}
       {(activeTab === 'filters' || activeTab === 'consumables') && (
       <section className="stock-section">
+        {lowStockAlert && (
+          <div className="stock-low-stock-banner">
+            <span>Showing items below minimum stock threshold</span>
+            <button
+              className="stock-low-stock-clear"
+              onClick={clearLowStockAlert}
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
         <div className="stock-section-header">
           <h2 className="stock-section-title">
             {activeTab === 'filters' ? 'Filter Products' : 'Consumables'}
@@ -856,10 +917,11 @@ export default function Inventory() {
               const isSupp = item.product_name.toLowerCase().includes('supplement')
               const threshold = item.min_threshold ?? 10
               const isLow = item.quantity < threshold
+              const lowStockHighlight = lowStockAlert && isLow
               return (
                 <div
                   key={item.product_id}
-                  className={`stock-card ${resolveStockAccent(item.product_sku, i)} stock-card-clickable`}
+                  className={`stock-card ${resolveStockAccent(item.product_sku, i)} stock-card-clickable${lowStockHighlight ? ' stock-card-low-stock-glow' : ''}`}
                   onClick={() => openProductModal(item)}
                   role="button"
                   tabIndex={0}

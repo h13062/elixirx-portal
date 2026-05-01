@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import FRONTEND_URL
 from app.routers import (
     auth_router,
+    dashboard,
     inventory_router,
     issues,
     machine_lifecycle,
@@ -30,6 +31,7 @@ app.include_router(warranty.router)
 app.include_router(reservations.router)
 app.include_router(issues.router)
 app.include_router(notifications.router)
+app.include_router(dashboard.router)
 app.include_router(inventory_router.router)
 
 

@@ -119,10 +119,28 @@
 
 .nav-label {
   display: inline;
+  flex: 1;
 }
 
 .sidebar.collapsed .nav-label {
   display: none;
+}
+
+/* Sidebar badge — used for urgent/high issue count on /issues nav item */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #EF4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1;
 }
 
 /* Admin divider */

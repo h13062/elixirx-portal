@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Calendar, ArrowUp, ArrowDown, X, Users, List } from 'lucide-react'
 import { apiGet, apiPut } from '../../lib/api'
 import './Reservations.css'
@@ -152,6 +152,22 @@ export default function ReservationsTab({
   onActiveCountChange,
 }: Props) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  // Honor `?status=...` from the URL on mount (set by dashboard cards / quick
+  // actions). Only the values produced by the status-filter tabs themselves
+  // are accepted — anything else falls back to 'all'.
+  const initialStatusFilter: ResStatusFilter = useMemo(() => {
+    const s = searchParams.get('status')
+    if (s === 'pending' || s === 'approved' || s === 'denied'
+        || s === 'expired' || s === 'cancelled' || s === 'converted') {
+      return s
+    }
+    return 'all'
+    // initial value is captured once — re-applying on every URL change is the
+    // parent's job (Inventory page reloads ReservationsTab when activeTab flips)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [list, setList] = useState<Reservation[]>([])
   const [expiring, setExpiring] = useState<ExpiringSoonReservation[]>([])
@@ -159,7 +175,7 @@ export default function ReservationsTab({
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<ResStatusFilter>('all')
+  const [filter, setFilter] = useState<ResStatusFilter>(initialStatusFilter)
 
   // Sub-view: All Reservations vs By Account
   const [subView, setSubView] = useState<SubView>('all')

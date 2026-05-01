@@ -231,3 +231,21 @@ class TestMachineIssues:
         """Rep can view issues (transparency)"""
         response = client.get("/api/issues", headers=rep_headers)
         assert response.status_code == 200
+
+    # ─── Sprint 4 — Issues page filters ─────────────────────────────────
+
+    @pytest.mark.sprint4
+    def test_issues_list_with_filters(self, client, admin_headers):
+        """GET /api/issues with status filter works"""
+        response = client.get("/api/issues?status=open", headers=admin_headers)
+        assert response.status_code == 200
+        for issue in response.json():
+            assert issue["status"] == "open"
+
+    @pytest.mark.sprint4
+    def test_issues_list_with_priority_filter(self, client, admin_headers):
+        """GET /api/issues with priority filter works"""
+        response = client.get("/api/issues?priority=high", headers=admin_headers)
+        assert response.status_code == 200
+        for issue in response.json():
+            assert issue["priority"] == "high"
