@@ -22,7 +22,7 @@ import pytest
 
 from conftest import unique_id
 
-pytestmark = pytest.mark.sprint3
+pytestmark = [pytest.mark.sprint3, pytest.mark.sprint3_1]
 
 
 def _new_machine(client, admin_headers):

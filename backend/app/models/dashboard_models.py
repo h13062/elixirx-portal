@@ -83,9 +83,21 @@ class ExpiringWarrantyEntry(BaseModel):
     warranty_id: str
     machine_id: str
     serial_number: Optional[str] = None
+    machine_type: Optional[str] = None
     customer_name: Optional[str] = None
     end_date: date
+    duration_months: int
     days_remaining: int
+
+
+class ExpiredWarrantyEntry(BaseModel):
+    warranty_id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    machine_type: Optional[str] = None
+    customer_name: Optional[str] = None
+    end_date: date
+    days_overdue: int
 
 
 class RecentIssueEntry(BaseModel):
@@ -109,3 +121,4 @@ class DashboardSummaryResponse(BaseModel):
     recent_activity: list[RecentActivityEntry]
     recent_issues: list[RecentIssueEntry]
     expiring_warranties: list[ExpiringWarrantyEntry]
+    expired_warranties: list[ExpiredWarrantyEntry]

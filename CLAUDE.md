@@ -138,16 +138,23 @@ All under `/api`, registered in `main.py` **before** `inventory_router` so stati
 ## Testing Commands
 
 - Run ALL tests: `pytest tests/ -v --tb=short`
-- Run Sprint 1 only: `pytest tests/ -v -m sprint1`
-- Run Sprint 2 only: `pytest tests/ -v -m sprint2`
-- Run Sprint 3 only: `pytest tests/ -v -m sprint3`
-- Run specific file: `pytest tests/test_warranty.py -v`
-- Run specific test: `pytest tests/test_warranty.py::TestWarranty::test_create_warranty -v`
+- Run a sprint: `pytest tests/ -v -m sprint4`
+- Run a single task: `pytest tests/ -v -m sprint4_1`
+- Run a file: `pytest tests/test_dashboard.py -v`
+- Run one test: `pytest tests/test_dashboard.py::TestWarrantyAlerts::test_dashboard_warranty_counts -v`
 - Stop on first failure: add `-x` flag
 - PowerShell: `.\run_tests.ps1` or `.\run_tests.ps1 -Sprint 3`
 - Batch: `run_tests.bat` or `run_tests.bat 3`
 
-Sprint markers are declared in [backend/pytest.ini](backend/pytest.ini); each test file pins its sprint via `pytestmark = pytest.mark.sprintN` so file moves don't lose the tag.
+## Test Marker Convention
+
+- **Sprint level:** `@pytest.mark.sprint4` — every test in a sprint
+- **Task level:** `@pytest.mark.sprint4_1` — only the tests for one task within a sprint
+- All test files have `pytestmark = pytest.mark.sprintN` (or a list `[sprintN, sprintN_M]` when the whole file maps to a single task) at the file level — this guarantees every test inherits the sprint tag without per-method decoration.
+- When a single file spans multiple tasks (e.g. `test_dashboard.py` covers Tasks 4.0 and 4.1), split it into per-task classes with per-method `@pytest.mark.sprintN_M` decorators so the task slice is pickable.
+- **Workflow:** task-level tests during development (`-m sprint4_1`), sprint-level before push (`-m sprint4`), all tests before merge.
+
+Markers are declared in [backend/pytest.ini](backend/pytest.ini). Use `pytest --markers` to list every registered marker.
 
 - Test credentials live in [backend/tests/conftest.py](backend/tests/conftest.py) — three sessions: super_admin, admin, rep
 - Test data uses a `TEST-` / `RX-` / `LOT-` / `SKU-` prefix (with random suffix via `unique_id()`) for easy identification and cleanup

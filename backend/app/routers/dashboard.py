@@ -31,6 +31,7 @@ from app.models.dashboard_models import (
     DashboardReservationCounts,
     DashboardSummaryResponse,
     DashboardWarrantyCounts,
+    ExpiredWarrantyEntry,
     ExpiringWarrantyEntry,
     LowStockItem,
     RecentActivityEntry,
@@ -88,17 +89,45 @@ def _build_machines() -> DashboardMachineCounts:
     return counts
 
 
-def _build_warranties() -> tuple[DashboardWarrantyCounts, list[ExpiringWarrantyEntry]]:
+def _derive_machine_type(product_name: Optional[str]) -> Optional[str]:
+    """Best-effort RX/RO derivation from a product name (matches warranty router)."""
+    if not product_name:
+        return None
+    name = product_name.upper()
+    if name.startswith("RX"):
+        return "RX"
+    if name.startswith("RO"):
+        return "RO"
+    return None
+
+
+def _extract_serial_and_type(machine_join) -> tuple[Optional[str], Optional[str]]:
+    if not isinstance(machine_join, dict):
+        return None, None
+    serial = machine_join.get("serial_number")
+    product = machine_join.get("products")
+    product_name = product.get("name") if isinstance(product, dict) else None
+    return serial, _derive_machine_type(product_name)
+
+
+def _build_warranties() -> tuple[
+    DashboardWarrantyCounts,
+    list[ExpiringWarrantyEntry],
+    list[ExpiredWarrantyEntry],
+]:
     rows = (
         supabase_admin.table("warranty")
-        .select("id, machine_id, customer_name, end_date, "
-                "machines(serial_number)")
+        .select(
+            "id, machine_id, customer_name, end_date, duration_months, "
+            "machines(serial_number, products(name))"
+        )
         .execute()
         .data
         or []
     )
     today = _today()
     expiring: list[ExpiringWarrantyEntry] = []
+    expired: list[ExpiredWarrantyEntry] = []
     counts = DashboardWarrantyCounts(total=len(rows))
 
     for r in rows:
@@ -106,28 +135,39 @@ def _build_warranties() -> tuple[DashboardWarrantyCounts, list[ExpiringWarrantyE
         if end_date is None:
             continue
         days_remaining = (end_date - today).days
+        serial, machine_type = _extract_serial_and_type(r.get("machines"))
+        duration_months = int(r.get("duration_months") or 0)
+
         if days_remaining < 0:
             counts.expired += 1
+            expired.append(ExpiredWarrantyEntry(
+                warranty_id=r["id"],
+                machine_id=r["machine_id"],
+                serial_number=serial,
+                machine_type=machine_type,
+                customer_name=r.get("customer_name"),
+                end_date=end_date,
+                days_overdue=abs(days_remaining),
+            ))
         elif days_remaining <= EXPIRING_WINDOW_DAYS:
             counts.expiring_soon += 1
-            machine_join = r.get("machines") or {}
-            serial = (
-                machine_join.get("serial_number")
-                if isinstance(machine_join, dict) else None
-            )
             expiring.append(ExpiringWarrantyEntry(
                 warranty_id=r["id"],
                 machine_id=r["machine_id"],
                 serial_number=serial,
+                machine_type=machine_type,
                 customer_name=r.get("customer_name"),
                 end_date=end_date,
+                duration_months=duration_months,
                 days_remaining=days_remaining,
             ))
         else:
             counts.active += 1
 
+    # Soonest-expiring first; most-recently-expired first.
     expiring.sort(key=lambda x: x.days_remaining)
-    return counts, expiring
+    expired.sort(key=lambda x: x.days_overdue)
+    return counts, expiring, expired
 
 
 def _build_issues(filter_user_id: Optional[str]) -> DashboardIssueCounts:
@@ -320,10 +360,11 @@ def dashboard_summary(current_user: dict = Depends(get_current_user)):
             machines = DashboardMachineCounts()
 
         try:
-            warranties, expiring_warranties = _build_warranties()
+            warranties, expiring_warranties, expired_warranties = _build_warranties()
         except Exception:
             warranties = DashboardWarrantyCounts()
             expiring_warranties = []
+            expired_warranties = []
 
         try:
             issues = _build_issues(rep_filter_id)
@@ -359,6 +400,7 @@ def dashboard_summary(current_user: dict = Depends(get_current_user)):
             recent_activity=recent_activity,
             recent_issues=recent_issues,
             expiring_warranties=expiring_warranties,
+            expired_warranties=expired_warranties,
         )
     except Exception as e:
         raise HTTPException(

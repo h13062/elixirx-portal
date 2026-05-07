@@ -3,7 +3,7 @@
 import pytest
 from conftest import unique_id
 
-pytestmark = pytest.mark.sprint3
+pytestmark = [pytest.mark.sprint3, pytest.mark.sprint3_4]
 
 
 class TestMachineIssues:

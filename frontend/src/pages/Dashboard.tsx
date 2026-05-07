@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Package,
   Shield,
+  ShieldCheck,
   AlertTriangle,
   Clock,
   Plus,
@@ -12,9 +13,14 @@ import {
   ListChecks,
   Eye,
   ArrowRight,
+  Download,
+  ChevronDown,
+  ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { apiGet } from '../lib/api'
+import { downloadWarrantyCertificate } from '../lib/download'
+import ExtendWarrantyModal from '../components/ExtendWarrantyModal'
 import './Dashboard.css'
 
 // ─── Types (mirror backend dashboard_models.py) ───────────────────────────
@@ -80,9 +86,21 @@ interface ExpiringWarrantyEntry {
   warranty_id: string
   machine_id: string
   serial_number: string | null
+  machine_type: string | null
   customer_name: string | null
   end_date: string
+  duration_months: number
   days_remaining: number
+}
+
+interface ExpiredWarrantyEntry {
+  warranty_id: string
+  machine_id: string
+  serial_number: string | null
+  machine_type: string | null
+  customer_name: string | null
+  end_date: string
+  days_overdue: number
 }
 
 interface RecentIssueEntry {
@@ -106,6 +124,7 @@ interface DashboardSummary {
   recent_activity: RecentActivityEntry[]
   recent_issues: RecentIssueEntry[]
   expiring_warranties: ExpiringWarrantyEntry[]
+  expired_warranties: ExpiredWarrantyEntry[]
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -171,10 +190,24 @@ export default function Dashboard() {
   const navigate = useNavigate()
 
   const isRep = user?.role === 'rep'
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  const showToast = useCallback(
+    (kind: 'ok' | 'err', msg: string) => setToast({ kind, msg }),
+    [],
+  )
 
   const fetchSummary = useCallback(async () => {
     if (!access_token) return
@@ -219,9 +252,20 @@ export default function Dashboard() {
         </div>
       )}
 
+      {toast && (
+        <div className={`dash-toast dash-toast-${toast.kind}`}>{toast.msg}</div>
+      )}
+
       {isRep
         ? <RepView data={data} loading={loading} navigate={navigate} />
-        : <AdminView data={data} loading={loading} navigate={navigate} />
+        : <AdminView
+            data={data}
+            loading={loading}
+            navigate={navigate}
+            isAdmin={isAdmin}
+            onRefresh={fetchSummary}
+            showToast={showToast}
+          />
       }
     </div>
   )
@@ -233,10 +277,16 @@ function AdminView({
   data,
   loading,
   navigate,
+  isAdmin,
+  onRefresh,
+  showToast,
 }: {
   data: DashboardSummary | null
   loading: boolean
   navigate: ReturnType<typeof useNavigate>
+  isAdmin: boolean
+  onRefresh: () => void
+  showToast: (kind: 'ok' | 'err', msg: string) => void
 }) {
   const m = data?.machines
   const w = data?.warranties
@@ -339,6 +389,15 @@ function AdminView({
           <WarrantyExpiringAlert
             items={data?.expiring_warranties ?? []}
             count={expiringSoon}
+            activeCount={w?.active ?? 0}
+            isAdmin={isAdmin}
+            onRefresh={onRefresh}
+            showToast={showToast}
+            navigate={navigate}
+          />
+          <ExpiredWarrantiesSection
+            items={data?.expired_warranties ?? []}
+            count={w?.expired ?? 0}
             navigate={navigate}
           />
           <LowStockAlert
@@ -447,47 +506,270 @@ function RepView({
 
 // ─── Alert sections ───────────────────────────────────────────────────────
 
+/** Pick a color for the days-remaining number. */
+function daysRemainingTone(days: number): 'amber' | 'orange' | 'red' {
+  if (days < 7) return 'red'
+  if (days <= 14) return 'orange'
+  return 'amber'
+}
+
+interface ExtendTarget {
+  warrantyId: string
+  serialNumber: string
+  currentEndDate: string
+  currentDuration: number
+  daysRemaining: number
+}
+
 function WarrantyExpiringAlert({
   items,
   count,
+  activeCount,
+  isAdmin,
+  onRefresh,
+  showToast,
   navigate,
 }: {
   items: ExpiringWarrantyEntry[]
   count: number
+  activeCount: number
+  isAdmin: boolean
+  onRefresh: () => void
+  showToast: (kind: 'ok' | 'err', msg: string) => void
   navigate: ReturnType<typeof useNavigate>
 }) {
-  if (count === 0 || items.length === 0) return null
+  const [extendTarget, setExtendTarget] = useState<ExtendTarget | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+  // Empty state — small green "all good" card.
+  if (count === 0 || items.length === 0) {
+    return (
+      <section className="dash-warranty-ok">
+        <ShieldCheck size={20} color="#10B981" />
+        <div className="dash-warranty-ok-body">
+          <div className="dash-warranty-ok-title">
+            All warranties are in good standing
+          </div>
+          <div className="dash-warranty-ok-sub">
+            {activeCount} active {activeCount === 1 ? 'warranty' : 'warranties'}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  const visible = items.slice(0, 5)
+  const remaining = Math.max(0, count - visible.length)
+  const hasCritical = visible.some(w => w.days_remaining < 7)
+
+  const handleDownload = async (w: ExpiringWarrantyEntry) => {
+    setDownloadingId(w.warranty_id)
+    const ok = await downloadWarrantyCertificate(
+      w.serial_number || w.machine_id,
+      w.serial_number,
+    )
+    setDownloadingId(null)
+    if (ok) showToast('ok', 'Certificate downloaded')
+    else showToast('err', 'Download failed')
+  }
+
   return (
-    <section className="dash-alert dash-alert-warn">
-      <div className="dash-alert-head">
-        <span className="dash-alert-title">
-          <AlertTriangle size={14} color="#F59E0B" />
-          {count} {count === 1 ? 'warranty' : 'warranties'} expiring within 30 days
-        </span>
-      </div>
-      <ul className="dash-alert-list">
-        {items.slice(0, 5).map(w => (
-          <li key={w.warranty_id} className="dash-alert-row">
+    <>
+      <section className="dash-warranty-alert">
+        <div className="dash-warranty-alert-head">
+          <span className="dash-warranty-alert-title">
+            <AlertTriangle size={14} color="#F59E0B" />
+            {count} {count === 1 ? 'Warranty' : 'Warranties'} Expiring Soon
+            {hasCritical && <span className="dash-pulse-dot" />}
+          </span>
+          <button
+            className="dash-view-all"
+            onClick={() => navigate('/warranty?status=expiring_soon')}
+          >
+            View All <ArrowRight size={11} />
+          </button>
+        </div>
+
+        <div className="dash-warranty-list">
+          {visible.map(w => {
+            const tone = daysRemainingTone(w.days_remaining)
+            const expired = w.days_remaining <= 0
+            const critical = !expired && w.days_remaining < 7
+            return (
+              <div
+                key={w.warranty_id}
+                className={`dash-warranty-row${critical ? ' dash-warranty-row-critical' : ''}`}
+              >
+                <div className="dash-warranty-row-left">
+                  <div className="dash-warranty-row-title">
+                    <button
+                      className="dash-mono dash-warranty-serial"
+                      onClick={() =>
+                        w.serial_number && navigate(`/machines/${w.serial_number}`)
+                      }
+                      disabled={!w.serial_number}
+                    >
+                      {w.serial_number || w.machine_id.slice(0, 8)}
+                    </button>
+                    {w.machine_type && (
+                      <span className={`dash-warranty-type-badge dash-warranty-type-${w.machine_type.toLowerCase()}`}>
+                        {w.machine_type}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    className={
+                      w.customer_name
+                        ? 'dash-warranty-customer'
+                        : 'dash-warranty-customer dash-warranty-customer-empty'
+                    }
+                  >
+                    {w.customer_name || 'No customer set'}
+                  </div>
+                </div>
+
+                <div className="dash-warranty-row-right">
+                  {expired ? (
+                    <div className="dash-warranty-days dash-warranty-days-expired">
+                      EXPIRED
+                    </div>
+                  ) : (
+                    <div className={`dash-warranty-days dash-warranty-days-${tone}${critical ? ' dash-warranty-days-pulse' : ''}`}>
+                      {w.days_remaining}
+                    </div>
+                  )}
+                  <div className="dash-warranty-days-label">
+                    {expired ? '' : 'days left'}
+                  </div>
+                  <div className="dash-warranty-end-date">
+                    {new Date(w.end_date + 'T00:00:00').toLocaleDateString('en-US', {
+                      month: 'short', day: 'numeric', year: 'numeric',
+                    })}
+                  </div>
+
+                  {isAdmin && (
+                    <div className="dash-warranty-actions">
+                      <button
+                        className="dash-warranty-btn dash-warranty-btn-primary"
+                        onClick={() => setExtendTarget({
+                          warrantyId: w.warranty_id,
+                          serialNumber: w.serial_number || w.machine_id,
+                          currentEndDate: w.end_date,
+                          currentDuration: w.duration_months,
+                          daysRemaining: w.days_remaining,
+                        })}
+                      >
+                        Extend
+                      </button>
+                      <button
+                        className="dash-warranty-btn dash-warranty-btn-success"
+                        onClick={() => handleDownload(w)}
+                        disabled={downloadingId === w.warranty_id}
+                      >
+                        <Download size={11} />
+                        {downloadingId === w.warranty_id ? '…' : 'Cert'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {remaining > 0 && (
+          <div className="dash-warranty-more">
             <button
-              className="dash-link dash-mono"
-              onClick={() => w.serial_number && navigate(`/machines/${w.serial_number}`)}
-              disabled={!w.serial_number}
+              className="dash-view-all"
+              onClick={() => navigate('/warranty?status=expiring_soon')}
             >
-              {w.serial_number || w.machine_id.slice(0, 8)}
+              and {remaining} more <ArrowRight size={11} />
             </button>
-            <span className="dash-alert-customer">{w.customer_name || '—'}</span>
-            <span className="dash-warn-num">{w.days_remaining}d left</span>
-          </li>
-        ))}
-      </ul>
-      <div className="dash-alert-foot">
-        <button
-          className="dash-view-all"
-          onClick={() => navigate('/warranty?status=expiring_soon')}
-        >
-          View All <ArrowRight size={11} />
-        </button>
-      </div>
+          </div>
+        )}
+      </section>
+
+      {extendTarget && (
+        <ExtendWarrantyModal
+          isOpen
+          onClose={() => setExtendTarget(null)}
+          warrantyId={extendTarget.warrantyId}
+          serialNumber={extendTarget.serialNumber}
+          currentEndDate={extendTarget.currentEndDate}
+          currentDuration={extendTarget.currentDuration}
+          daysRemaining={extendTarget.daysRemaining}
+          onSuccess={() => {
+            showToast('ok', 'Warranty extended')
+            onRefresh()
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+// ─── Expired warranties section (collapsible, only renders when count > 0) ─
+
+function ExpiredWarrantiesSection({
+  items,
+  count,
+  navigate,
+}: {
+  items: ExpiredWarrantyEntry[]
+  count: number
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (count === 0 || items.length === 0) return null
+
+  const visible = items.slice(0, 10)
+
+  return (
+    <section className="dash-warranty-expired">
+      <button
+        className="dash-warranty-expired-head"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className="dash-warranty-expired-title">
+          <span className="dash-warranty-expired-dot" />
+          {count} Expired {count === 1 ? 'Warranty' : 'Warranties'}
+        </span>
+        {expanded ? <ChevronDown size={14} /> : <ChevronRightIcon size={14} />}
+      </button>
+
+      {expanded && (
+        <>
+          <ul className="dash-warranty-expired-list">
+            {visible.map(w => (
+              <li key={w.warranty_id} className="dash-warranty-expired-row">
+                <button
+                  className="dash-mono dash-warranty-serial"
+                  onClick={() =>
+                    w.serial_number && navigate(`/machines/${w.serial_number}`)
+                  }
+                  disabled={!w.serial_number}
+                >
+                  {w.serial_number || w.machine_id.slice(0, 8)}
+                </button>
+                <span className="dash-warranty-expired-customer">
+                  {w.customer_name || '—'}
+                </span>
+                <span className="dash-warranty-expired-days">
+                  Expired {w.days_overdue} {w.days_overdue === 1 ? 'day' : 'days'} ago
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="dash-alert-foot">
+            <button
+              className="dash-view-all"
+              onClick={() => navigate('/warranty?status=expired')}
+            >
+              View All <ArrowRight size={11} />
+            </button>
+          </div>
+        </>
+      )}
     </section>
   )
 }

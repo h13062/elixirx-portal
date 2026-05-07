@@ -1,0 +1,158 @@
+/* Shared Extend Warranty Modal — used by Dashboard, Warranty page, MachineDetail */
+
+.ext-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.ext-modal {
+  background: #0F172A;
+  border: 1px solid #1E293B;
+  border-radius: 14px;
+  padding: 20px 22px;
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.ext-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #F8FAFC;
+}
+
+/* Current info pane */
+.ext-current-info {
+  background: #0A0F1C;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ext-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: #CBD5E1;
+}
+
+.ext-info-label {
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.ext-info-row strong {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+.ext-days-ok       { color: #10B981; }
+.ext-days-warn     { color: #F59E0B; }
+.ext-days-critical { color: #EF4444; }
+.ext-days-expired  { color: #EF4444; }
+
+/* Form fields */
+.ext-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ext-field > span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+.ext-field input,
+.ext-field textarea {
+  background: #020617;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  color: #F8FAFC;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+.ext-field input:focus,
+.ext-field textarea:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.ext-new-end-line {
+  margin: 0;
+  font-size: 12px;
+  color: #94A3B8;
+}
+.ext-new-end-line strong {
+  color: #F8FAFC;
+  font-weight: 600;
+}
+
+.ext-form-error {
+  font-size: 12px;
+  color: #FCA5A5;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.ext-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ext-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.ext-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.ext-btn-primary {
+  background: #3B82F6;
+  color: #fff;
+}
+.ext-btn-primary:hover:not(:disabled) {
+  background: #2563EB;
+}
+
+.ext-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-color, #1E293B);
+  color: #94A3B8;
+}
+.ext-btn-ghost:hover:not(:disabled) {
+  color: #F8FAFC;
+  border-color: #475569;
+}

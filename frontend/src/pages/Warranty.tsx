@@ -4,10 +4,11 @@ import {
   Shield,
   AlertTriangle,
   Download,
-  Plus,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { apiGet, apiPut, apiGetBlob } from '../lib/api'
+import { apiGet } from '../lib/api'
+import { downloadWarrantyCertificate } from '../lib/download'
+import SharedExtendWarrantyModal from '../components/ExtendWarrantyModal'
 import './Warranty.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -67,19 +68,6 @@ function formatDate(value: string | null | undefined): string {
   } catch {
     return value
   }
-}
-
-function addMonths(date: Date, months: number): Date {
-  const result = new Date(date.getFullYear(), date.getMonth() + months, 1)
-  const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()
-  result.setDate(Math.min(date.getDate(), lastDay))
-  return result
-}
-
-function formatDateOnly(d: Date): string {
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -178,23 +166,11 @@ export default function Warranty() {
 
   const handleDownload = async (w: Warranty) => {
     setDownloadingId(w.id)
-    try {
-      const target = w.serial_number || w.machine_id
-      const blob = await apiGetBlob(`/api/warranty/certificate/${target}`, access_token!)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `ElixirX_Warranty_${w.serial_number || w.machine_id}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-      setToast({ kind: 'ok', msg: 'Certificate downloaded' })
-    } catch (e) {
-      setToast({ kind: 'err', msg: (e as Error).message || 'Download failed' })
-    } finally {
-      setDownloadingId(null)
-    }
+    const target = w.serial_number || w.machine_id
+    const ok = await downloadWarrantyCertificate(target, w.serial_number, access_token!)
+    setDownloadingId(null)
+    if (ok) setToast({ kind: 'ok', msg: 'Certificate downloaded' })
+    else setToast({ kind: 'err', msg: 'Download failed' })
   }
 
   // ─── Derived ────────────────────────────────────────────────────────────
@@ -390,12 +366,15 @@ export default function Warranty() {
       </div>
 
       {extendTarget && (
-        <ExtendWarrantyModal
-          warranty={extendTarget}
-          token={access_token!}
+        <SharedExtendWarrantyModal
+          isOpen
           onClose={() => setExtendTarget(null)}
-          onDone={async () => {
-            setExtendTarget(null)
+          warrantyId={extendTarget.id}
+          serialNumber={extendTarget.serial_number || extendTarget.machine_id}
+          currentEndDate={extendTarget.end_date}
+          currentDuration={extendTarget.duration_months}
+          daysRemaining={extendTarget.days_remaining}
+          onSuccess={async () => {
             setToast({ kind: 'ok', msg: 'Warranty extended' })
             await refreshAfterMutation()
           }}
@@ -517,115 +496,3 @@ function WarrantyRow({
   )
 }
 
-// ─── ExtendWarrantyModal ──────────────────────────────────────────────────
-
-function ExtendWarrantyModal({
-  warranty,
-  token,
-  onClose,
-  onDone,
-}: {
-  warranty: Warranty
-  token: string
-  onClose: () => void
-  onDone: () => void
-}) {
-  const [months, setMonths] = useState(6)
-  const [reason, setReason] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!reason.trim()) {
-      setErr('Reason is required')
-      return
-    }
-    if (months < 1) {
-      setErr('Additional months must be at least 1')
-      return
-    }
-    setSaving(true)
-    setErr(null)
-    try {
-      await apiPut(
-        `/api/warranty/${warranty.id}/extend`,
-        { additional_months: months, reason: reason.trim() },
-        token,
-      )
-      onDone()
-    } catch (e) {
-      setErr((e as Error).message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="war-modal-overlay" onClick={onClose}>
-      <form
-        className="war-modal"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
-      >
-        <h3 className="war-modal-title">
-          Extend Warranty — {warranty.serial_number || ''}
-        </h3>
-        <p className="war-modal-sub">
-          Currently ends {formatDate(warranty.end_date)}
-          {' · '}duration {warranty.duration_months} mo
-          {warranty.days_remaining != null && ` · ${warranty.days_remaining} days remaining`}
-        </p>
-
-        <label className="war-field">
-          <span>Additional Months</span>
-          <input
-            type="number"
-            min={1}
-            max={60}
-            value={months}
-            onChange={(e) => setMonths(parseInt(e.target.value || '6', 10))}
-          />
-        </label>
-
-        <label className="war-field">
-          <span>Reason *</span>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder="Why is this warranty being extended?"
-          />
-        </label>
-
-        <p className="war-modal-sub">
-          New end date:{' '}
-          <strong>
-            {formatDateOnly(addMonths(new Date(warranty.end_date + 'T00:00:00'), months || 0))}
-          </strong>
-        </p>
-
-        {err && <div className="war-form-error">{err}</div>}
-
-        <div className="war-modal-actions">
-          <button
-            type="button"
-            className="war-btn war-btn-ghost"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="war-btn war-btn-primary"
-            disabled={saving}
-          >
-            <Plus size={14} />
-            {saving ? 'Extending…' : 'Extend'}
-          </button>
-        </div>
-      </form>
-    </div>
-  )
-}

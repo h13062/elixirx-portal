@@ -17,10 +17,11 @@ import {
   apiGetOptional,
   apiPut,
   apiPostAuth,
-  apiGetBlob,
   apiDelete,
 } from '../lib/api'
+import { downloadWarrantyCertificate } from '../lib/download'
 import ConfirmModal from '../components/ConfirmModal'
+import SharedExtendWarrantyModal from '../components/ExtendWarrantyModal'
 import './MachineDetail.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -302,24 +303,12 @@ export default function MachineDetail() {
   // ── Action handlers ─────────────────────────────────────────────────────
 
   const downloadCertificate = async () => {
-    if (!identifier || !access_token) return
+    if (!identifier) return
     setDownloadingCert(true)
-    try {
-      const blob = await apiGetBlob(`/api/warranty/certificate/${identifier}`, access_token)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const serial = detail?.machine.serial_number || identifier
-      a.download = `ElixirX_Warranty_${serial}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      showToast('error', (e as Error).message || 'Failed to download certificate')
-    } finally {
-      setDownloadingCert(false)
-    }
+    const serial = detail?.machine.serial_number || identifier
+    const ok = await downloadWarrantyCertificate(identifier, serial, access_token!)
+    setDownloadingCert(false)
+    if (!ok) showToast('error', 'Failed to download certificate')
   }
 
   const restockMachine = async () => {
@@ -922,12 +911,15 @@ export default function MachineDetail() {
         />
       )}
       {showExtendWarranty && warranty && (
-        <ExtendWarrantyModal
-          warranty={warranty}
-          token={access_token!}
+        <SharedExtendWarrantyModal
+          isOpen
           onClose={() => setShowExtendWarranty(false)}
-          onDone={() => {
-            setShowExtendWarranty(false)
+          warrantyId={warranty.id}
+          serialNumber={warranty.serial_number || identifier!}
+          currentEndDate={warranty.end_date}
+          currentDuration={warranty.duration_months}
+          daysRemaining={warranty.days_remaining}
+          onSuccess={() => {
             showToast('success', 'Warranty extended')
             fetchAll()
           }}
@@ -1330,103 +1322,6 @@ function SetWarrantyModal({
             disabled={saving}
           >
             {saving ? 'Creating…' : 'Set Warranty'}
-          </button>
-        </div>
-      </form>
-    </div>
-  )
-}
-
-function ExtendWarrantyModal({
-  warranty,
-  token,
-  onClose,
-  onDone,
-}: {
-  warranty: Warranty
-  token: string
-  onClose: () => void
-  onDone: () => void
-}) {
-  const [months, setMonths] = useState(6)
-  const [reason, setReason] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  const submit = async (e: { preventDefault(): void }) => {
-    e.preventDefault()
-    if (!reason.trim()) {
-      setErr('Reason is required')
-      return
-    }
-    setSaving(true)
-    setErr(null)
-    try {
-      await apiPut(
-        `/api/warranty/${warranty.id}/extend`,
-        { additional_months: months, reason: reason.trim() },
-        token,
-      )
-      onDone()
-    } catch (e) {
-      setErr((e as Error).message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="md-modal-overlay" onClick={onClose}>
-      <form
-        className="md-modal"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
-      >
-        <h3 className="md-modal-title">Extend Warranty — {warranty.serial_number || ''}</h3>
-        <p className="md-modal-sub">
-          Currently ends {formatDate(warranty.end_date)}
-          {' · '}
-          duration {warranty.duration_months}mo
-          {warranty.days_remaining != null && ` · ${warranty.days_remaining} days remaining`}
-        </p>
-        <label className="md-field">
-          <span>Additional Months</span>
-          <input
-            type="number"
-            min={1}
-            max={60}
-            value={months}
-            onChange={(e) => setMonths(parseInt(e.target.value || '6', 10))}
-          />
-        </label>
-        <label className="md-field">
-          <span>Reason *</span>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder="Why is this warranty being extended?"
-          />
-        </label>
-        <p className="md-modal-sub">
-          New end date:{' '}
-          {formatDateOnly(addMonths(new Date(warranty.end_date + 'T00:00:00'), months || 0))}
-        </p>
-        {err && <div className="md-form-error">{err}</div>}
-        <div className="md-modal-actions">
-          <button
-            type="button"
-            className="md-btn md-btn-ghost"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="md-btn md-btn-primary"
-            disabled={saving}
-          >
-            {saving ? 'Extending…' : 'Extend Warranty'}
           </button>
         </div>
       </form>
