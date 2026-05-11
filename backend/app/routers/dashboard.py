@@ -17,14 +17,16 @@ errors out, the affected section returns its zero/empty default and the rest
 of the response still loads.
 """
 
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.auth import get_current_user
 from app.core.supabase_client import supabase_admin
 from app.models.dashboard_models import (
+    ActivityFeedEntry,
     DashboardIssueCounts,
     DashboardLowStock,
     DashboardMachineCounts,
@@ -295,7 +297,11 @@ def _build_low_stock() -> DashboardLowStock:
             min_threshold=threshold,
         ))
     items.sort(key=lambda x: (x.quantity - x.min_threshold))
-    return DashboardLowStock(count=len(items), items=items)
+    return DashboardLowStock(
+        count=len(items),
+        total_tracked=len(rows),
+        items=items,
+    )
 
 
 def _build_recent_activity() -> list[RecentActivityEntry]:
@@ -407,3 +413,151 @@ def dashboard_summary(current_user: dict = Depends(get_current_user)):
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to build dashboard summary: {e}",
         )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/activity  (Sprint 4 Task 4.3 — dedicated paginated activity feed)
+# ---------------------------------------------------------------------------
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def _resolve_machine_id(identifier: str) -> Optional[str]:
+    """Accept UUID or serial_number; return the machine UUID (or None)."""
+    if _is_uuid(identifier):
+        return identifier
+    result = (
+        supabase_admin.table("machines")
+        .select("id")
+        .eq("serial_number", identifier)
+        .execute()
+    )
+    return result.data[0]["id"] if result.data else None
+
+
+def _derive_machine_type_from_serial(serial: Optional[str]) -> Optional[str]:
+    """Serial like 'RX-2026-001' / 'RO-…' encodes the machine type as the prefix."""
+    if not serial:
+        return None
+    upper = serial.upper()
+    if upper.startswith("RX"):
+        return "RX"
+    if upper.startswith("RO"):
+        return "RO"
+    return None
+
+
+def _format_time_ago(value) -> str:
+    """Best-effort human-friendly relative time. Empty string on failure."""
+    if not value:
+        return ""
+    try:
+        s = str(value).replace("Z", "+00:00")
+        then = datetime.fromisoformat(s)
+        if then.tzinfo is None:
+            then = then.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return ""
+    diff = (datetime.now(timezone.utc) - then).total_seconds()
+    if diff < 60:
+        return "just now"
+    if diff < 3600:
+        m = int(diff // 60)
+        return f"{m} minute{'s' if m != 1 else ''} ago"
+    if diff < 86400:
+        h = int(diff // 3600)
+        return f"{h} hour{'s' if h != 1 else ''} ago"
+    if diff < 86400 * 30:
+        d = int(diff // 86400)
+        return f"{d} day{'s' if d != 1 else ''} ago"
+    return then.strftime("%b %d, %Y")
+
+
+@router.get("/activity", response_model=list[ActivityFeedEntry])
+def activity_feed(
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    machine_id: Optional[str] = Query(None, description="UUID or serial number"),
+    changed_by: Optional[str] = Query(None, description="profile UUID"),
+    date_from: Optional[str] = Query(None, description="ISO date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="ISO date (YYYY-MM-DD)"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Paginated machine status change log.
+
+    Joins machines (serial_number, product name) and profiles (full_name).
+    Friendly identifier accepted for `machine_id` (UUID or serial number).
+    All filters optional; `limit` capped at 50.
+    """
+    q = (
+        supabase_admin.table("machine_status_log")
+        .select(
+            "id, machine_id, from_status, to_status, changed_by, reason, "
+            "created_at, machines(serial_number, products(name)), "
+            "profiles(full_name)"
+        )
+        .order("created_at", desc=True)
+    )
+
+    if machine_id:
+        resolved = _resolve_machine_id(machine_id)
+        if resolved is None:
+            # Unknown machine — return empty rather than 404; UI just shows nothing.
+            return []
+        q = q.eq("machine_id", resolved)
+
+    if changed_by:
+        q = q.eq("changed_by", changed_by)
+
+    if date_from:
+        q = q.gte("created_at", date_from)
+
+    if date_to:
+        # Inclusive end-of-day for a plain YYYY-MM-DD.
+        end_value = date_to if "T" in date_to else f"{date_to}T23:59:59+00:00"
+        q = q.lte("created_at", end_value)
+
+    rows = q.range(offset, offset + limit - 1).execute().data or []
+
+    out: list[ActivityFeedEntry] = []
+    for r in rows:
+        machine_join = r.get("machines") or {}
+        serial = (
+            machine_join.get("serial_number")
+            if isinstance(machine_join, dict) else None
+        )
+        product = (
+            machine_join.get("products") if isinstance(machine_join, dict) else None
+        )
+        product_name = (
+            product.get("name") if isinstance(product, dict) else None
+        )
+        prof_join = r.get("profiles") or {}
+        full_name = (
+            prof_join.get("full_name")
+            if isinstance(prof_join, dict) else None
+        )
+        # Type from product name first, fall back to serial prefix.
+        machine_type = _derive_machine_type(product_name) or \
+            _derive_machine_type_from_serial(serial)
+
+        out.append(ActivityFeedEntry(
+            id=r["id"],
+            machine_id=r["machine_id"],
+            machine_serial=serial,
+            serial_number=serial,
+            machine_type=machine_type,
+            from_status=r.get("from_status"),
+            to_status=r["to_status"],
+            changed_by=r.get("changed_by"),
+            changed_by_name=full_name,
+            reason=r.get("reason"),
+            created_at=r["created_at"],
+            time_ago=_format_time_ago(r["created_at"]),
+        ))
+    return out

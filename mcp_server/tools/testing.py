@@ -14,7 +14,7 @@ from typing import Any
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 BACKEND_DIR = PROJECT_ROOT / "backend"
 PYTEST_INI = BACKEND_DIR / "pytest.ini"
-PYTEST_TIMEOUT_SECONDS = 120
+PYTEST_TIMEOUT_SECONDS = 300
 MAX_OUTPUT_CHARS = 3000
 
 
@@ -88,6 +88,9 @@ def register_testing_tools(server: Any) -> None:
         verbose: bool = True,
     ) -> str:
         """Run pytest with optional filters.
+
+        Timeout is 300 seconds. For faster results, use a specific marker
+        like sprint4_1.
 
         Args:
             marker: pytest marker, e.g. "sprint4_1".

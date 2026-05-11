@@ -2,9 +2,11 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Package,
+  PackageCheck,
   Shield,
   ShieldCheck,
   AlertTriangle,
+  Activity,
   Clock,
   Plus,
   CalendarCheck,
@@ -120,7 +122,7 @@ interface DashboardSummary {
   warranties: WarrantyCounts
   issues: IssueCounts
   reservations: ReservationCounts
-  low_stock: { count: number; items: LowStockItem[] }
+  low_stock: { count: number; total_tracked: number; items: LowStockItem[] }
   recent_activity: RecentActivityEntry[]
   recent_issues: RecentIssueEntry[]
   expiring_warranties: ExpiringWarrantyEntry[]
@@ -166,12 +168,33 @@ function statusDotColor(s: string): string {
   switch (s) {
     case 'available': return '#10B981'
     case 'reserved':  return '#F59E0B'
-    case 'ordered':   return '#3B82F6'
-    case 'sold':      return '#A855F7'
-    case 'delivered': return '#14B8A6'
-    case 'returned':  return '#94A3B8'
+    case 'ordered':   return '#8B5CF6'
+    case 'sold':      return '#3B82F6'
+    case 'delivered': return '#10B981'
+    case 'returned':  return '#EF4444'
     default:          return '#64748B'
   }
+}
+
+/** Derive RX/RO machine type from a serial-number prefix. */
+function machineTypeFromSerial(serial: string | null | undefined): string | null {
+  if (!serial) return null
+  const upper = serial.toUpperCase()
+  if (upper.startsWith('RX')) return 'RX'
+  if (upper.startsWith('RO')) return 'RO'
+  return null
+}
+
+/** Full local datetime for hover tooltips. */
+function formatFullDateTime(value: string): string {
+  return new Date(value).toLocaleString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function priorityClass(p: string): string {
@@ -402,6 +425,8 @@ function AdminView({
           />
           <LowStockAlert
             items={data?.low_stock?.items ?? []}
+            count={data?.low_stock?.count ?? 0}
+            totalTracked={data?.low_stock?.total_tracked ?? 0}
             navigate={navigate}
           />
           <RecentActivitySection
@@ -776,51 +801,118 @@ function ExpiredWarrantiesSection({
 
 function LowStockAlert({
   items,
+  count,
+  totalTracked,
   navigate,
 }: {
   items: LowStockItem[]
+  count: number
+  totalTracked: number
   navigate: ReturnType<typeof useNavigate>
 }) {
-  if (items.length === 0) return null
+  // Empty state — small green "all stocked" card.
+  if (count === 0 || items.length === 0) {
+    return (
+      <section className="dash-lowstock-ok">
+        <PackageCheck size={20} color="#10B981" />
+        <div className="dash-lowstock-ok-body">
+          <div className="dash-lowstock-ok-title">
+            All consumables are well stocked
+          </div>
+          <div className="dash-lowstock-ok-sub">
+            {totalTracked} {totalTracked === 1 ? 'product' : 'products'} tracked
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  const visible = items.slice(0, 5)
+  const remaining = Math.max(0, count - visible.length)
+  const hasOutOfStock = items.some(i => i.quantity === 0)
+
   return (
-    <section className="dash-alert dash-alert-danger">
-      <div className="dash-alert-head">
-        <span className="dash-alert-title">
+    <section className="dash-lowstock-alert">
+      <div className="dash-lowstock-head">
+        <span className="dash-lowstock-title">
           <AlertTriangle size={14} color="#EF4444" />
-          {items.length} {items.length === 1 ? 'item' : 'items'} below minimum stock
+          {count} {count === 1 ? 'Item' : 'Items'} Below Minimum Stock
+          {hasOutOfStock && <span className="dash-pulse-dot" />}
         </span>
-      </div>
-      <ul className="dash-alert-list">
-        {items.slice(0, 5).map(item => {
-          const tab = isFilterProduct(item.product_name) ? 'filters' : 'consumables'
-          return (
-            <li key={item.product_id} className="dash-alert-row">
-              <button
-                className="dash-link dash-alert-product"
-                onClick={() => navigate(`/inventory?tab=${tab}&alert=low_stock`)}
-              >
-                {item.product_name}
-              </button>
-              <span className="dash-mono dash-alert-sku">{item.sku || '—'}</span>
-              <span className="dash-alert-counts">
-                <span className="dash-danger-num">Current: {item.quantity}</span>
-                <span className="dash-alert-threshold">Min: {item.min_threshold}</span>
-              </span>
-            </li>
-          )
-        })}
-      </ul>
-      <div className="dash-alert-foot">
         <button
           className="dash-view-all"
-          onClick={() => navigate('/inventory?tab=consumables&alert=low_stock')}
+          onClick={() => navigate('/inventory?tab=filters&alert=low_stock')}
         >
-          View All <ArrowRight size={11} />
+          Manage Stock <ArrowRight size={11} />
         </button>
       </div>
+
+      <div className="dash-lowstock-list">
+        {visible.map(item => {
+          const tab = isFilterProduct(item.product_name) ? 'filters' : 'consumables'
+          const ratio = item.min_threshold > 0
+            ? item.quantity / item.min_threshold
+            : 0
+          const fillPct = Math.max(0, Math.min(100, ratio * 100))
+          const fillColor = ratio < 0.25
+            ? '#EF4444'
+            : ratio < 0.75 ? '#F59E0B' : '#10B981'
+          const deficit = item.min_threshold - item.quantity
+          const isOut = item.quantity === 0
+          return (
+            <button
+              key={item.product_id}
+              type="button"
+              className="dash-lowstock-row"
+              onClick={() => navigate(`/inventory?tab=${tab}&alert=low_stock`)}
+            >
+              <div className="dash-lowstock-row-left">
+                <div className="dash-lowstock-product">
+                  {item.product_name}
+                  {isOut && (
+                    <span className="dash-lowstock-out-badge">OUT OF STOCK</span>
+                  )}
+                </div>
+                <div className="dash-mono dash-lowstock-sku">
+                  {item.sku || '—'}
+                </div>
+              </div>
+
+              <div className="dash-lowstock-row-center">
+                <div className="dash-mono dash-lowstock-qty">{item.quantity}</div>
+                <div className="dash-lowstock-qty-label">in stock</div>
+              </div>
+
+              <div className="dash-lowstock-row-right">
+                <div className="dash-lowstock-min">Min: {item.min_threshold}</div>
+                <div className="dash-lowstock-deficit">-{deficit} below</div>
+                <div className="dash-lowstock-bar">
+                  <div
+                    className="dash-lowstock-bar-fill"
+                    style={{ width: `${fillPct}%`, background: fillColor }}
+                  />
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {remaining > 0 && (
+        <div className="dash-lowstock-more">
+          <button
+            className="dash-view-all"
+            onClick={() => navigate('/inventory?tab=filters&alert=low_stock')}
+          >
+            and {remaining} more <ArrowRight size={11} />
+          </button>
+        </div>
+      )}
     </section>
   )
 }
+
+const FIVE_MINUTES_MS = 5 * 60 * 1000
 
 function RecentActivitySection({
   items,
@@ -829,55 +921,108 @@ function RecentActivitySection({
   items: RecentActivityEntry[]
   navigate: ReturnType<typeof useNavigate>
 }) {
+  // Cap the dashboard timeline at 10 entries; the /activity page shows more.
+  const visible = items.slice(0, 10)
+  const now = Date.now()
+
   return (
-    <section className="dash-section">
+    <section className="dash-section dash-activity-section">
       <div className="dash-section-head">
         <span className="dash-section-title">
-          <Clock size={13} color="#64748B" /> RECENT ACTIVITY
+          <Activity size={13} color="#64748B" /> RECENT ACTIVITY
         </span>
-      </div>
-      {items.length === 0 ? (
-        <div className="dash-empty">No recent activity yet</div>
-      ) : (
-        <ul className="dash-activity-list">
-          {items.map(a => (
-            <li
-              key={a.id}
-              className="dash-activity-row"
-              onClick={() => a.serial_number && navigate(`/machines/${a.serial_number}`)}
-            >
-              <span
-                className="dash-activity-dot"
-                style={{ background: statusDotColor(a.to_status) }}
-              />
-              <div className="dash-activity-body">
-                <div className="dash-activity-line">
-                  <span className="dash-mono">{a.serial_number || a.machine_id.slice(0, 8)}</span>
-                  <span className="dash-activity-arrow">→</span>
-                  <span className="dash-activity-status">{a.to_status}</span>
-                  {a.changed_by_name && (
-                    <span className="dash-activity-by">by {a.changed_by_name}</span>
-                  )}
-                </div>
-                {a.reason && (
-                  <div className="dash-activity-reason">
-                    {truncate(a.reason, 50)}
-                  </div>
-                )}
-              </div>
-              <span className="dash-activity-time">{formatRelative(a.created_at)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="dash-alert-foot">
         <button
           className="dash-view-all"
-          onClick={() => navigate('/inventory?tab=machines')}
+          onClick={() => navigate('/activity')}
         >
           View All <ArrowRight size={11} />
         </button>
       </div>
+
+      {visible.length === 0 ? (
+        <div className="dash-activity-empty">
+          <Clock size={16} color="#475569" />
+          <span>No machine status changes yet</span>
+        </div>
+      ) : (
+        <ul className="dash-activity-timeline">
+          {visible.map((a, idx) => {
+            const dotColor = statusDotColor(a.to_status)
+            const machineType = machineTypeFromSerial(a.serial_number)
+            const isFresh =
+              now - new Date(a.created_at).getTime() < FIVE_MINUTES_MS
+            const fullTimestamp = formatFullDateTime(a.created_at)
+            return (
+              <li
+                key={a.id}
+                className={`dash-activity-entry${isFresh ? ' dash-activity-entry-fresh' : ''}`}
+                style={{ animationDelay: `${idx * 50}ms` }}
+              >
+                <span
+                  className="dash-activity-dot"
+                  style={{
+                    background: dotColor,
+                    boxShadow: `0 0 0 3px rgba(15, 23, 42, 1), 0 0 0 4px ${dotColor}33`,
+                  }}
+                />
+                <div className="dash-activity-content">
+                  <div className="dash-activity-headline">
+                    <button
+                      type="button"
+                      className="dash-mono dash-activity-serial"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (a.serial_number) navigate(`/machines/${a.serial_number}`)
+                      }}
+                      disabled={!a.serial_number}
+                    >
+                      {a.serial_number || a.machine_id.slice(0, 8)}
+                    </button>
+                    {machineType && (
+                      <span
+                        className={`dash-activity-type dash-activity-type-${machineType.toLowerCase()}`}
+                      >
+                        {machineType}
+                      </span>
+                    )}
+                    {a.from_status && (
+                      <>
+                        <span
+                          className={`dash-activity-status-badge dash-activity-status-${a.from_status}`}
+                        >
+                          {a.from_status}
+                        </span>
+                        <span className="dash-activity-arrow">→</span>
+                      </>
+                    )}
+                    <span
+                      className={`dash-activity-status-badge dash-activity-status-${a.to_status}`}
+                    >
+                      {a.to_status}
+                    </span>
+                  </div>
+                  {a.changed_by_name && (
+                    <div className="dash-activity-by">
+                      by {a.changed_by_name}
+                    </div>
+                  )}
+                  {a.reason && (
+                    <div className="dash-activity-reason">
+                      {truncate(a.reason, 60)}
+                    </div>
+                  )}
+                  <div
+                    className="dash-activity-time"
+                    title={fullTimestamp}
+                  >
+                    {formatRelative(a.created_at)}
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </section>
   )
 }

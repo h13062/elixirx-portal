@@ -405,57 +405,173 @@
   text-align: center;
 }
 
-/* ─── Recent activity list ──────────────────────────────────────────── */
+/* ─── Recent activity timeline (Sprint 4.3) ─────────────────────────── */
 
-.dash-activity-list {
+.dash-activity-section .dash-section-title {
+  letter-spacing: 0.06em;
+}
+
+.dash-activity-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 4px;
+  color: #64748B;
+  font-size: 12px;
+}
+
+.dash-activity-timeline {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 4px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+}
+
+/* Vertical line connecting the dots, drawn behind everything. */
+.dash-activity-timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  background: #1E293B;
+}
+
+.dash-activity-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 12px;
+  padding: 6px 6px 6px 4px;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+  transition: background 120ms ease, border-color 120ms ease;
+  opacity: 0;
+  animation: dash-activity-fade-in 280ms ease forwards;
+}
+.dash-activity-entry:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Subtle blue left glow on entries < 5 minutes old, fades out over 10s. */
+.dash-activity-entry-fresh {
+  border-left-color: #3B82F6;
+  animation:
+    dash-activity-fade-in 280ms ease forwards,
+    dash-activity-glow-fade 10s ease 1s forwards;
+}
+
+@keyframes dash-activity-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dash-activity-glow-fade {
+  0%   { box-shadow: -3px 0 12px -3px rgba(59, 130, 246, 0.45); }
+  100% { box-shadow: -3px 0 12px -3px rgba(59, 130, 246, 0);
+         border-left-color: transparent; }
+}
+
+.dash-activity-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+  z-index: 1;
+  position: relative;
+}
+
+.dash-activity-content {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.dash-activity-row {
-  display: grid;
-  grid-template-columns: 8px 1fr auto;
-  gap: 10px;
-  align-items: start;
-  padding: 8px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.dash-activity-row:hover {
-  background: rgba(59, 130, 246, 0.04);
-}
-
-.dash-activity-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 5px;
-  flex-shrink: 0;
-}
-
-.dash-activity-body {
-  min-width: 0;
-}
-
-.dash-activity-line {
+.dash-activity-headline {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   font-size: 12px;
   color: #F8FAFC;
-  flex-wrap: wrap;
 }
-.dash-activity-arrow { color: #475569; }
-.dash-activity-status {
-  color: #CBD5E1;
+
+.dash-activity-serial {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #F8FAFC;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}
+.dash-activity-serial:hover { color: #3B82F6; text-decoration: underline; }
+.dash-activity-serial:disabled { color: #64748B; cursor: default; text-decoration: none; }
+
+.dash-activity-type {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dash-activity-type-rx {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60A5FA;
+}
+.dash-activity-type-ro {
+  background: rgba(20, 184, 166, 0.15);
+  color: #2DD4BF;
+}
+
+.dash-activity-arrow {
+  color: #475569;
+  font-size: 11px;
+}
+
+.dash-activity-status-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: capitalize;
-  font-weight: 500;
+  background: rgba(148, 163, 184, 0.1);
+  color: #CBD5E1;
 }
+.dash-activity-status-available {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10B981;
+}
+.dash-activity-status-reserved {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+.dash-activity-status-ordered {
+  background: rgba(139, 92, 246, 0.12);
+  color: #A78BFA;
+}
+.dash-activity-status-sold {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60A5FA;
+}
+.dash-activity-status-delivered {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34D399;
+}
+.dash-activity-status-returned {
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+}
+
 .dash-activity-by {
   color: #64748B;
   font-size: 11px;
@@ -465,14 +581,13 @@
   color: #94A3B8;
   font-style: italic;
   font-size: 11px;
-  margin-top: 2px;
 }
 
 .dash-activity-time {
   color: #64748B;
-  font-size: 11px;
-  white-space: nowrap;
-  flex-shrink: 0;
+  font-size: 10px;
+  margin-top: 2px;
+  cursor: help;
 }
 
 /* ─── Open issues list ──────────────────────────────────────────────── */
@@ -883,4 +998,167 @@
   color: #EF4444;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
+}
+
+/* ─── Low stock — empty "all stocked" state ─────────────────────────── */
+
+.dash-lowstock-ok {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.dash-lowstock-ok-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dash-lowstock-ok-title {
+  color: #10B981;
+  font-size: 13px;
+  font-weight: 500;
+}
+.dash-lowstock-ok-sub {
+  color: #64748B;
+  font-size: 11px;
+}
+
+/* ─── Low stock alert widget ────────────────────────────────────────── */
+
+.dash-lowstock-alert {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dash-lowstock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dash-lowstock-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #EF4444;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dash-lowstock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dash-lowstock-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.dash-lowstock-row:hover {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.dash-lowstock-row-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dash-lowstock-product {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #F8FAFC;
+  font-size: 13px;
+  font-weight: 500;
+}
+.dash-lowstock-out-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #EF4444;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dash-lowstock-sku {
+  color: #64748B;
+  font-size: 11px;
+}
+
+.dash-lowstock-row-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+}
+.dash-lowstock-qty {
+  color: #EF4444;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+.dash-lowstock-qty-label {
+  color: #64748B;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.dash-lowstock-row-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 80px;
+}
+.dash-lowstock-min {
+  color: #64748B;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dash-lowstock-deficit {
+  color: #EF4444;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dash-lowstock-bar {
+  width: 60px;
+  height: 4px;
+  background: #1E293B;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.dash-lowstock-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 200ms ease;
+}
+
+.dash-lowstock-more {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
 }

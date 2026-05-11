@@ -10,47 +10,77 @@ A full-stack sales operations platform for Core Pacific Inc.'s ElixirX hydrogen 
 | Backend | Python + FastAPI |
 | Database | Supabase (PostgreSQL + Auth) |
 | Testing | pytest with sprint-based markers |
+| Dev tools | `elixirx-dev` MCP server (Claude Code automation) |
 | Version Control | Git + GitHub |
 
 ## Features
 
-### Sprint 1 — Authentication
+### Sprint 1 — Authentication ✅
 - Role-based access control (Super Admin, Admin, Sales Rep)
-- Three rep tiers: Distributor (10%), Agent (10-20%), Master Agent (25%)
+- Three rep tiers: Distributor (10%), Agent (10–20%), Master Agent (25%)
 - Admin creates rep accounts with auto-generated temporary passwords
 - Password change functionality
-- Session management with JWT tokens
+- Session management with JWT tokens, frontend auto-refresh on 401
 - Protected routes with role-based sidebar navigation
 
-### Sprint 2 — Inventory Management
+### Sprint 2 — Inventory Management ✅
 - Machine registration with serial number tracking (RX Machine $5,995 / RO Machine $3,995)
-- Consumable stock with batch-level traceability
-- Manufacturing date and shipment tracking for health & safety compliance
-- Supplement flavor management with individual SKUs (SUPP-FA through SUPP-FE)
-- Full CRUD for products, flavors, and batches
-- Friendly identifier lookup (UUID, SKU, or name accepted on all endpoints)
-- Low stock alerts with configurable thresholds
+- Consumable stock with batch-level traceability (manufacture date, expiry, shipment-to)
+- Supplement flavor management with individual SKUs (`SUPP-FA` … `SUPP-FE`)
+- Full CRUD for products, flavors, machines, and batches (soft delete + hard delete decided per resource)
+- Friendly identifier lookup — UUID, SKU, or name accepted on every endpoint
+- Low-stock detection with configurable per-product thresholds
 
-### Sprint 3 — Machine Lifecycle, Warranty, Notifications (In Progress)
-
-Backend (3.1–3.5, complete):
-- Machine status transitions: Available → Reserved → Ordered → Sold → Delivered → Returned
-- Every status change logged with who/when/why; admin force override with `FORCED:` reason prefix
-- Warranty tracking with creation, extension, and PDF certificate generation (fpdf2)
-- Warranty dashboard: active, expiring soon (30 days), expired counts
-- Reservation workflow: rep requests → admin approves/denies → 7-day countdown → auto-expiry
-- Machine issue tracking with priority levels (Low/Medium/High/Urgent) and resolution notes
+### Sprint 3 — Machine Lifecycle, Warranty & Notifications ✅
+- Machine status transitions: `available → reserved → ordered → sold → delivered → returned`, every change logged with who/when/why
+- Admin force override (skips state-machine check, prefixes reason with `FORCED:`)
+- Warranty tracking: create, extend, PDF certificate generation (fpdf2), expiring/expired dashboard
+- Reservation workflow: rep requests → admin approves/denies → 7-day countdown → auto-expiry, plus by-account analytics with sortable rep filter
+- Issue tracking with priority levels (Low/Medium/High/Urgent) and resolution notes
 - In-app notifications with `notify_admins` / `notify_user` helpers wired into reservation, warranty, and issue events
+- **Frontend:** three-tab Inventory, Machine Detail page with full lifecycle UI, Warranty page with dashboard tab, Issues page
 
-Frontend (3.6–3.7, complete):
-- Inventory page redesigned with three tabs (Machines / Filters / Consumables)
-- Machine Detail page with full lifecycle UI: status-change, reserve, deny-reservation, warranty set/extend, issue report, status-history and issues tabs
-- Auto-prompt for warranty setup when transitioning a machine to `delivered`
-- Soft delete (deactivate) for products and flavors; hard delete for machines with validation chain
-- Frontend Supabase client with `autoRefreshToken`; `fetchWithAuth` retries on 401 and redirects to `/login` if refresh fails
-- `apiGetOptional` helper so 404 = "no data" instead of error (warranty / reservation lookups)
+### Sprint 4 — Dashboard & Notifications 🔄 (in progress)
+- ✅ 4.0 Single-endpoint dashboard summary (`GET /api/dashboard/summary`) aggregates 9 sections in one round trip
+- ✅ 4.1 Warranty expiration alerts widget — extend / download certificate inline
+- ✅ 4.2 Low stock alerts widget — mini cards with progress bars, OUT OF STOCK badge, pulsing critical indicator
+- ⏳ 4.3 Activity feed (data already in summary; UI pending)
+- ⏳ 4.4 Issue tracker widget (data already in summary; UI pending)
+- ⏳ 4.5 Notification bell
+- ⏳ 4.6 Summary reports
+- ⏳ 4.7 Role-based views
+- ⏳ 4.8 Sprint-4 full test pass
 
-Pending: warranty page UI (3.8), reservation page UI (3.9).
+## Sprint Roadmap
+
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| 0  | Project setup | ✅ Complete |
+| 1  | Authentication | ✅ Complete |
+| 2  | Inventory & Batch Tracking | ✅ Complete |
+| 3  | Machine Lifecycle & Warranty | ✅ Complete |
+| 4  | Dashboard & Notifications | 🔄 In progress (4.0–4.2 done) |
+| 5  | Leads & Customers | ⏳ Pending |
+| 6  | Orders | ⏳ Pending |
+| 7  | Commissions | ⏳ Pending |
+| 8  | Tickets | ⏳ Pending |
+| 9  | User Management & Settings | ⏳ Pending |
+| 10 | Email & Polish | ⏳ Pending |
+| 11 | Deployment | ⏳ Pending |
+
+## Test Coverage
+
+138 tests in 8 files. Verified by `pytest tests/ --collect-only -q -m sprintN`.
+
+| Sprint | Tests | Status |
+|--------|-------|--------|
+| Sprint 1 | 12  | ✅ Passing |
+| Sprint 2 | 30  | ✅ Passing |
+| Sprint 3 | 88  | ✅ Passing |
+| Sprint 4 | 10  | ✅ Passing (tasks 4.0–4.2) |
+| **Total** | **138** | |
+
+Test files: `test_auth.py`, `test_inventory.py`, `test_machine_lifecycle.py`, `test_warranty.py`, `test_reservations.py`, `test_issues.py`, `test_notifications.py`, `test_dashboard.py`.
 
 ## Project Structure
 
@@ -58,32 +88,37 @@ Pending: warranty page UI (3.8), reservation page UI (3.9).
 elixirx-portal/
 ├── frontend/                       # React + TypeScript + Vite + Tailwind
 │   ├── src/
-│   │   ├── pages/                  # Route-level views (Login, Dashboard, Inventory, ...)
-│   │   ├── components/             # Feature components (inventory/, layout, etc.)
-│   │   ├── context/                # ThemeContext, auth context
-│   │   ├── lib/                    # API client, Supabase client
+│   │   ├── pages/                  # 14 route-level views (Dashboard, Inventory,
+│   │   │                           #   MachineDetail, Warranty, Issues, ...)
+│   │   ├── components/             # Feature components (inventory/, layout/, ...)
+│   │   ├── context/                # Theme + auth context
+│   │   ├── lib/                    # api client (with auth refresh), download helpers
 │   │   └── main.tsx
 │   ├── index.html
 │   └── package.json
 ├── backend/                        # FastAPI application
 │   ├── app/
-│   │   ├── routers/                # HTTP-only adapters (auth, inventory,
-│   │   │                           #   machine_lifecycle, warranty,
-│   │   │                           #   reservations, issues, notifications)
+│   │   ├── routers/                # 8 routers — auth, inventory, machine_lifecycle,
+│   │   │                           #   warranty, reservations, issues, notifications,
+│   │   │                           #   dashboard
 │   │   ├── services/               # Business logic
 │   │   ├── repositories/           # One class per Supabase table
 │   │   ├── models/                 # Pydantic request/response models
 │   │   ├── core/                   # Auth, Supabase clients, helpers,
 │   │   │                           #   notification_helper, config
 │   │   └── main.py                 # App entrypoint + router registration
-│   ├── tests/                      # pytest suite (markers: sprint1/2/3)
+│   ├── tests/                      # 8 test files, 138 tests, sprint markers
 │   ├── pytest.ini
 │   ├── run_tests.ps1               # PowerShell runner: .\run_tests.ps1 -Sprint 3
 │   ├── run_tests.bat               # CMD runner: run_tests.bat 3
 │   └── requirements.txt
+├── mcp_server/                     # elixirx-dev MCP server (dev automation)
+│   ├── server.py                   # Stdio entrypoint
+│   ├── tools/                      # database, testing, project, migration
+│   └── requirements.txt
 ├── docs/
-│   └── bug-log/                    # Per-sprint bug log
-├── CLAUDE.md                       # Architectural conventions and domain rules
+│   └── bug-log/                    # Per-sprint bug log (sprints 0–4)
+├── CLAUDE.md                       # Architectural conventions + current state
 └── README.md                       # This file
 ```
 
@@ -97,7 +132,7 @@ elixirx-portal/
 
 ### Frontend
 
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
@@ -107,16 +142,27 @@ Runs at http://localhost:5173.
 
 ### Backend
 
-```bash
+```powershell
 cd backend
 python -m venv venv
-venv\Scripts\activate         # Windows
-# source venv/bin/activate    # macOS / Linux
+venv\Scripts\activate           # Windows PowerShell
+# source venv/bin/activate      # macOS / Linux
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8000
 ```
 
 Runs at http://localhost:8000. Interactive API docs at http://localhost:8000/docs. Health check at http://localhost:8000/api/health.
+
+### MCP Server (optional, for Claude Code automation)
+
+```powershell
+cd mcp_server
+pip install -r requirements.txt
+# Then configure Claude Code to launch python mcp_server/server.py
+# with PROJECT_ROOT set to the repo root.
+```
+
+The server reads `backend/.env` for Supabase credentials and exposes 15 dev-automation tools (database queries, test runs, project introspection, migrations) over stdio. See [CLAUDE.md](CLAUDE.md) for the full tool list.
 
 ## Environment Variables
 
@@ -142,23 +188,26 @@ The backend uses the Supabase service role key for all reads and writes; the fro
 
 ## Running Tests
 
-Tests are organized by sprint via pytest markers in [backend/pytest.ini](backend/pytest.ini). Each test file pins its sprint via `pytestmark = pytest.mark.sprintN`.
+Tests are organized by sprint and task via pytest markers in [`backend/pytest.ini`](backend/pytest.ini). Each test file pins its sprint via `pytestmark = pytest.mark.sprintN`; per-method `@pytest.mark.sprintN_M` adds the task-level tag.
 
-```bash
+```powershell
 cd backend
 venv\Scripts\activate
 
 # All tests
 pytest tests/ -v --tb=short
 
-# Run by sprint
+# By sprint
 pytest tests/ -v -m sprint1
-pytest tests/ -v -m sprint2
 pytest tests/ -v -m sprint3
+pytest tests/ -v -m sprint4
+
+# By task (during development)
+pytest tests/ -v -m sprint4_2
 
 # Single file or test
 pytest tests/test_warranty.py -v
-pytest tests/test_warranty.py::TestWarranty::test_create_warranty -v
+pytest tests/test_dashboard.py::TestLowStockAlerts -v
 
 # Stop on first failure
 pytest tests/ -v -x
@@ -178,7 +227,9 @@ run_tests.bat 3                REM sprint 3 only
 
 ## Database
 
-Supabase provides PostgreSQL plus authentication. The schema is created via the Supabase SQL Editor; canonical migration snippets live in the bug log and at the top of each router file (e.g. [backend/app/routers/auth_router.py](backend/app/routers/auth_router.py)).
+Supabase provides PostgreSQL plus authentication. The schema is created via the Supabase SQL Editor; canonical migration snippets live in the bug log and at the top of each router file.
+
+15 tables in `public`: `profiles`, `invitations`, `admin_codes`, `admin_log`, `system_config`, `products`, `machines`, `consumable_stock`, `supplement_flavors`, `consumable_batches`, `machine_status_log`, `warranty`, `reservations`, `notifications`, `machine_issues`.
 
 Notable architectural decisions (full list in [CLAUDE.md](CLAUDE.md)):
 
@@ -195,21 +246,22 @@ Once the backend is running, interactive OpenAPI docs are available at:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-Major endpoint groups:
+Major endpoint groups (8 routers):
 
 | Prefix | Purpose |
 |--------|---------|
-| `/api/auth/*` | Login, admin setup, invite rep, password change |
-| `/api/products`, `/api/machines`, `/api/consumable-*`, `/api/supplement-flavors` | Inventory |
-| `/api/machines/{id}/status`, `/api/machines/status-summary`, `/api/machines/bulk-status` | Machine lifecycle |
-| `/api/warranty/*` | Warranty CRUD, dashboard, PDF certificates |
-| `/api/reservations/*` | Reservation request / approve / deny / cancel / expire |
-| `/api/issues/*` | Machine issue reporting and resolution |
-| `/api/notifications/*` | In-app notifications: list, mark read, broadcast |
+| `/api/auth/*` | Login, admin setup, invite rep, password change, admin codes/log |
+| `/api/products`, `/api/machines`, `/api/consumable-*`, `/api/supplement-flavors` | Inventory CRUD |
+| `/api/machines/{id}/status`, `/api/machines/status-summary`, `/api/machines/bulk-status`, `/full-detail`, `/status-history` | Machine lifecycle |
+| `/api/warranty/*` | Warranty CRUD, dashboard, expiring check, PDF certificates |
+| `/api/reservations/*` | Reservation request / approve / deny / cancel / expire + analytics |
+| `/api/issues/*` | Machine issue reporting, status, resolution |
+| `/api/notifications/*` | List, unread-count, mark read, broadcast, clear-read |
+| `/api/dashboard/summary` | Sprint 4 — full dashboard payload in one call |
 
 ## Documentation
 
-- [CLAUDE.md](CLAUDE.md) — codebase conventions, domain rules, and architectural decisions for AI assistants and human contributors
+- [CLAUDE.md](CLAUDE.md) — codebase conventions, domain rules, current sprint state, MCP server reference
 - [docs/bug-log/](docs/bug-log/) — every notable bug with symptom, root cause, fix, and prevention; indexed by sprint
 - [docs/bug-log/README.md](docs/bug-log/README.md) — common patterns checklist; consult before debugging unfamiliar errors
 

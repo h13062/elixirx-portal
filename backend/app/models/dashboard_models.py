@@ -64,6 +64,7 @@ class LowStockItem(BaseModel):
 
 class DashboardLowStock(BaseModel):
     count: int
+    total_tracked: int = 0
     items: list[LowStockItem]
 
 
@@ -77,6 +78,26 @@ class RecentActivityEntry(BaseModel):
     changed_by_name: Optional[str] = None
     reason: Optional[str] = None
     created_at: datetime
+
+
+class ActivityFeedEntry(BaseModel):
+    """Dedicated /api/activity payload (Sprint 4 Task 4.3).
+
+    Adds machine_type + time_ago compared to RecentActivityEntry so the
+    standalone activity-feed page can render without further reshaping.
+    """
+    id: str
+    machine_id: str
+    machine_serial: Optional[str] = None
+    serial_number: Optional[str] = None  # alias kept for older clients
+    machine_type: Optional[str] = None
+    from_status: Optional[str] = None
+    to_status: str
+    changed_by: Optional[str] = None
+    changed_by_name: Optional[str] = None
+    reason: Optional[str] = None
+    created_at: datetime
+    time_ago: str
 
 
 class ExpiringWarrantyEntry(BaseModel):

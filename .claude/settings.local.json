@@ -6,7 +6,8 @@
       "Bash(npm create:*)",
       "Bash(npm install:*)",
       "Bash(venv/Scripts/pip install:*)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "mcp__elixirx-dev__run_tests"
     ]
   }
 }

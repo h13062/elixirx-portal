@@ -1,12 +1,14 @@
 """Sprint 4 — dashboard summary endpoint tests.
 
-Split into two classes:
+Split into four classes:
 - TestDashboardLayout (Task 4.0) — basic shape, auth, and rep-vs-admin filtering
 - TestWarrantyAlerts   (Task 4.1) — warranty-specific fields and check-expiring
+- TestLowStockAlerts   (Task 4.2) — low_stock section shape and item fields
+- TestActivityFeed     (Task 4.3) — /api/activity endpoint
 
 Module-level `sprint4` marker means every test inherits the sprint marker; the
-per-method `sprint4_0` / `sprint4_1` decorators add the task marker on top so
-`pytest -m sprint4_1` runs only the warranty-alert tests.
+per-method `sprint4_N` decorators add the task marker on top so
+`pytest -m sprint4_3` runs only the activity-feed tests.
 """
 
 import pytest
@@ -116,3 +118,78 @@ class TestWarrantyAlerts:
         response = client.get("/api/warranty/check-expiring", headers=admin_headers)
         assert response.status_code == 200
         assert isinstance(response.json(), list)
+
+
+class TestLowStockAlerts:
+    """Task 4.2 — Low stock alerts widget."""
+
+    @pytest.mark.sprint4_2
+    def test_dashboard_low_stock_structure(self, client, admin_headers):
+        """Low stock section has correct structure"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        assert "low_stock" in data
+        assert "count" in data["low_stock"]
+        assert "items" in data["low_stock"]
+        assert isinstance(data["low_stock"]["items"], list)
+
+    @pytest.mark.sprint4_2
+    def test_low_stock_items_have_required_fields(self, client, admin_headers):
+        """Each low stock item has product_name, sku, quantity, min_threshold"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        for item in data["low_stock"]["items"]:
+            assert "product_name" in item
+            assert "quantity" in item
+            assert "min_threshold" in item
+
+
+@pytest.mark.sprint4_3
+class TestActivityFeed:
+    """Task 4.3 — Machine status change activity feed."""
+
+    def test_get_activity_feed(self, client, admin_headers):
+        """GET /api/activity returns activity list"""
+        response = client.get("/api/activity", headers=admin_headers)
+        assert response.status_code == 200, f"Failed: {response.json()}"
+        assert isinstance(response.json(), list)
+
+    def test_activity_feed_limit(self, client, admin_headers):
+        """Activity feed respects limit parameter"""
+        response = client.get("/api/activity?limit=5", headers=admin_headers)
+        assert response.status_code == 200
+        assert len(response.json()) <= 5
+
+    def test_activity_feed_has_required_fields(self, client, admin_headers):
+        """Each activity entry has required fields"""
+        response = client.get("/api/activity", headers=admin_headers)
+        data = response.json()
+        if data:
+            entry = data[0]
+            assert "machine_serial" in entry or "serial_number" in entry
+            assert "to_status" in entry
+            assert "created_at" in entry
+
+    def test_activity_after_status_change(self, client, admin_headers):
+        """Activity feed includes recent status changes"""
+        from conftest import unique_id
+        # Create a machine
+        products = client.get("/api/products", headers=admin_headers).json()
+        rx = next(p for p in products if p["name"] == "RX Machine")
+        serial = unique_id("RX")
+        client.post("/api/machines", headers=admin_headers, json={
+            "serial_number": serial, "product_id": rx["id"],
+            "batch_number": "TEST", "manufacture_date": "2026-01-15"
+        })
+        # Change status
+        client.put(f"/api/machines/{serial}/status", headers=admin_headers,
+                   json={"new_status": "reserved", "reason": "Activity feed test"})
+        # Check activity
+        response = client.get("/api/activity", headers=admin_headers)
+        serials = [e.get("machine_serial", e.get("serial_number", "")) for e in response.json()]
+        assert serial in serials, f"{serial} not found in activity feed"
+
+    def test_rep_can_view_activity(self, client, rep_headers):
+        """Rep can view activity feed"""
+        response = client.get("/api/activity", headers=rep_headers)
+        assert response.status_code == 200

@@ -18,6 +18,7 @@ One markdown file per sprint:
 | [sprint-1.md](sprint-1.md) | Sprint 1 — Auth, database schema, backend foundation |
 | [sprint-2.md](sprint-2.md) | Sprint 2 — Inventory module (products, machines, consumable stock, supplement flavors, batch tracking) |
 | [sprint-3.md](sprint-3.md) | Sprint 3 — Machine lifecycle, warranty, reservations, issues, notifications, frontend auth refresh |
+| [sprint-4.md](sprint-4.md) | Sprint 4 — Dashboard summary endpoint, warranty alerts, low-stock alerts, MCP dev server |
 
 Add a new file (`sprint-N.md`) when a new sprint begins. Copy [TEMPLATE.md](TEMPLATE.md) as the starting point.
 
