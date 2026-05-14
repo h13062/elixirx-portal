@@ -249,7 +249,7 @@ Sections:
 
 Local MCP server in [`/mcp_server/`](mcp_server/) that exposes development-automation tools to Claude Code. Stdio transport; loads env from `backend/.env` automatically.
 
-### Tools (15 total, in 4 modules)
+### Tools (19 total, in 5 modules)
 
 **`tools/database.py`** — Supabase access (uses `service_role` key)
 - `query_table(table, columns, filters, limit, order_by)` — PostgREST select
@@ -274,11 +274,42 @@ Local MCP server in [`/mcp_server/`](mcp_server/) that exposes development-autom
 - `generate_migration(...)` — generate migration template
 - `check_migration_status()` — list current schema state
 
+**`tools/agent_tools.py`** — Development Agent (Fix Mode + Review Mode)
+- `diagnose_failure()` — read `last_failure.json` and pattern-match the pytest output (missing table, `.single()`, 401/403/404, UUID friendly-id, …) into a fix plan
+- `auto_fix(task_description="")` — turn the latest watcher failure into an actionable step list, optionally appending custom context
+- `pre_push_review()` — runs the same checks as `python -m mcp_server.agent.reviewer` (full pytest + debug/secret/env/coverage scans)
+- `get_last_failure_raw()` — dump the raw `last_failure.json` for cases where the matchers don't recognise the error
+
 ### How to connect
 
 The MCP server runs over stdio; configure Claude Code to launch `python mcp_server/server.py` with `PROJECT_ROOT` pointing at the repo root. The server reads `backend/.env` for Supabase credentials.
 
 > Note: when bumping the timeout in `mcp_server/tools/testing.py`, the running MCP server must be restarted for the new value to take effect. The harness loads the constant once at startup.
+
+## Development Agent
+
+Lives in [`mcp_server/agent/`](mcp_server/agent/). Four modes — two run in a terminal, two run from inside Claude Code via the MCP tools above.
+
+**Watch Mode** — file-watcher that runs the right tests for the right file.
+- Start: `.\mcp_server\agent\watch.ps1` (or `watch.bat`)
+- Recursively watches `backend/app/` and `frontend/src/`
+- On `.py` save: detects sprint via filename → product-area map (`SPRINT_MAP` in `agent/config.py`) and runs `pytest -m sprintN`
+- On `.ts`/`.tsx` save: runs `npx tsc --noEmit`
+- 2-second debounce coalesces editor-save bursts
+- Failures persisted to `mcp_server/agent/last_failure.json`
+
+**Review Mode** — pre-push sanity check.
+- Run: `.\mcp_server\agent\review.ps1` (or `review.bat`)
+- Six checks: full pytest, debug-artifact scan (`print()`, `pdb`, `breakpoint()`), `.env` exposure (gitignore + staged-for-commit), hardcoded-secret scan, router/test coverage diff, recommendation aggregator
+- Exit code 0 = SAFE TO PUSH, 1 = FIX ISSUES
+- Also persists `mcp_server/agent/last_review.json`
+
+**Fix Mode** — from Claude Code:
+- *"Use elixirx-dev to diagnose the last test failure"* → `diagnose_failure`
+- *"Use elixirx-dev to auto-fix the failing tests"* → `auto_fix`
+- Both read `last_failure.json` produced by the watcher.
+
+**Review Mode (via MCP)** — *"Use elixirx-dev to run pre-push review"* → `pre_push_review`.
 
 ## Daily Dev Commands
 

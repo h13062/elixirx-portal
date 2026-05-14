@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 from tools import (
+    register_agent_tools,
     register_database_tools,
     register_migration_tools,
     register_project_tools,
@@ -43,6 +44,7 @@ register_database_tools(server)
 register_testing_tools(server)
 register_project_tools(server)
 register_migration_tools(server)
+register_agent_tools(server)
 
 
 @server.resource("elixirx://status")

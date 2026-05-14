@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../context/ThemeContext'
 import { apiGet } from '../lib/api'
+import NotificationBell from './NotificationBell'
 import './Layout.css'
 
 const ROUTE_TITLES: Record<string, string> = {
@@ -37,6 +38,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/warranty': 'Warranty',
   '/users': 'User Management',
   '/settings': 'Settings',
+  '/notifications': 'Notifications',
 }
 
 const NAV_ITEMS = [
@@ -47,6 +49,7 @@ const NAV_ITEMS = [
   { path: '/orders', label: 'Orders', icon: ClipboardList },
   { path: '/issues', label: 'Issues', icon: AlertTriangle, badgeKey: 'issues' as const },
   { path: '/commissions', label: 'Commissions', icon: DollarSign },
+  { path: '/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' as const },
 ]
 
 const ADMIN_NAV_ITEMS = [
@@ -86,6 +89,8 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [urgentBadge, setUrgentBadge] = useState<{ count: number; capped: boolean }>(
     { count: 0, capped: false },
   )
+  // Mirrored from NotificationBell so the sidebar item can show the same count.
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   useEffect(() => {
     if (!access_token) return
     let cancelled = false
@@ -138,7 +143,10 @@ export default function Layout({ children }: { children: ReactNode }) {
         <nav className="sidebar-nav">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon
-            const showIssueBadge = item.badgeKey === 'issues' && urgentBadge.count > 0
+            const showIssueBadge =
+              item.badgeKey === 'issues' && urgentBadge.count > 0
+            const showNotifBadge =
+              item.badgeKey === 'notifications' && unreadNotifications > 0
             return (
               <NavLink
                 key={item.path}
@@ -150,6 +158,11 @@ export default function Layout({ children }: { children: ReactNode }) {
                 {showIssueBadge && !collapsed && (
                   <span className="nav-badge">
                     {urgentBadge.capped ? '10+' : urgentBadge.count}
+                  </span>
+                )}
+                {showNotifBadge && !collapsed && (
+                  <span className="nav-badge nav-badge-notif">
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
                   </span>
                 )}
               </NavLink>
@@ -203,10 +216,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <h1 className="header-title">{pageTitle}</h1>
 
           <div className="header-actions">
-            <button className="header-bell-btn" aria-label="Notifications">
-              <Bell size={20} />
-              <span className="notification-badge">0</span>
-            </button>
+            <NotificationBell onUnreadCountChange={setUnreadNotifications} />
 
             <div className="header-avatar-wrapper" ref={dropdownRef}>
               <button

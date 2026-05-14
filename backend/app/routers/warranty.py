@@ -698,3 +698,4 @@ def get_warranty(warranty_id: str, current_user: dict = Depends(get_current_user
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch warranty: {e}",
         )
+

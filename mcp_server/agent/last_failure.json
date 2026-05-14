@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-05-14T17:38:34+00:00",
+  "file_changed": "backend\\app\\routers\\warranty.py",
+  "sprint": "sprint3",
+  "failed_tests": [],
+  "error_output": "ImportError while loading conftest 'C:\\Users\\hbset\\elixirx-portal\\backend\\tests\\conftest.py'.\ntests\\conftest.py:3: in <module>\n    from app.main import app\napp\\main.py:4: in <module>\n    from app.routers import (\napp\\routers\\warranty.py:702: in <module>\n    \u00e1d\nE   NameError: name '\u00e1d' is not defined\n",
+  "status": "unresolved"
+}

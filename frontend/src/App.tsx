@@ -16,6 +16,7 @@ import Issues from './pages/Issues'
 import Warranty from './pages/Warranty'
 import UserManagement from './pages/UserManagement'
 import SettingsPage from './pages/SettingsPage'
+import Notifications from './pages/Notifications'
 
 function App() {
   return (
@@ -119,6 +120,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><SettingsPage /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute>
+                <Layout><Notifications /></Layout>
               </ProtectedRoute>
             }
           />

@@ -10,7 +10,7 @@ A full-stack sales operations platform for Core Pacific Inc.'s ElixirX hydrogen 
 | Backend | Python + FastAPI |
 | Database | Supabase (PostgreSQL + Auth) |
 | Testing | pytest with sprint-based markers |
-| Dev tools | `elixirx-dev` MCP server (Claude Code automation) |
+| Dev tools | `elixirx-dev` MCP server + Development Agent (watch/review/fix) |
 | Version Control | Git + GitHub |
 
 ## Features
@@ -162,7 +162,27 @@ pip install -r requirements.txt
 # with PROJECT_ROOT set to the repo root.
 ```
 
-The server reads `backend/.env` for Supabase credentials and exposes 15 dev-automation tools (database queries, test runs, project introspection, migrations) over stdio. See [CLAUDE.md](CLAUDE.md) for the full tool list.
+The server reads `backend/.env` for Supabase credentials and exposes 19 dev-automation tools (database queries, test runs, project introspection, migrations, agent fix/review) over stdio. See [CLAUDE.md](CLAUDE.md) for the full tool list.
+
+### Development Agent (optional, terminal-based)
+
+The agent at [`mcp_server/agent/`](mcp_server/agent/) gives you two terminal modes and two Claude-Code MCP tools that share the same failure state.
+
+```powershell
+# Watch Mode — auto-runs sprint tests on file save (also `npx tsc --noEmit` for .ts/.tsx).
+.\mcp_server\agent\watch.ps1
+
+# Review Mode — pre-push checks: full pytest, debug artifacts, secrets, .env exposure, coverage gaps.
+.\mcp_server\agent\review.ps1
+```
+
+From inside Claude Code:
+
+- *"Use elixirx-dev to diagnose the last test failure"* — pattern-matches the most recent watcher failure (missing table, `.single()`, 401/403/404, UUID friendly-id, …)
+- *"Use elixirx-dev to auto-fix the failing tests"* — turns the diagnosis into a step list with files to read
+- *"Use elixirx-dev to run pre-push review"* — same six checks as `review.ps1`
+
+The watcher writes failures to `mcp_server/agent/last_failure.json`; the review writes its JSON report to `last_review.json` alongside it.
 
 ## Environment Variables
 

@@ -1,0 +1,224 @@
+/* Sprint 4.5 — Full notifications page styles. */
+
+.notif-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+/* ── Header (tabs + bulk actions) ──────────────────────────────────── */
+
+.notif-page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notif-page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #0F172A;
+  border: 1px solid #1E293B;
+  border-radius: 10px;
+}
+
+.notif-page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94A3B8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.notif-page-tab:hover {
+  color: #F8FAFC;
+  background: rgba(255, 255, 255, 0.03);
+}
+.notif-page-tab-active {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60A5FA;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.notif-page-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.18);
+  color: #CBD5E1;
+  font-size: 10px;
+  font-weight: 700;
+}
+.notif-page-tab-active .notif-page-tab-count {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93C5FD;
+}
+
+.notif-page-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.notif-page-btn {
+  background: #1E293B;
+  border: 1px solid #334155;
+  color: #CBD5E1;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.notif-page-btn:hover:not(:disabled) {
+  background: #273449;
+  border-color: #475569;
+}
+.notif-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.notif-page-btn-danger {
+  color: #F87171;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+}
+.notif-page-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* ── States ────────────────────────────────────────────────────────── */
+
+.notif-page-loading,
+.notif-page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 48px 16px;
+  background: #0F172A;
+  border: 1px solid #1E293B;
+  border-radius: 10px;
+}
+.notif-page-loading { color: #64748B; font-size: 13px; }
+.notif-page-empty .notif-empty-title {
+  color: #64748B;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 6px;
+}
+.notif-page-empty .notif-empty-sub {
+  color: #475569;
+  font-size: 12px;
+  text-align: center;
+  max-width: 320px;
+}
+
+/* ── List + cards ──────────────────────────────────────────────────── */
+
+.notif-page-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notif-page-card {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 14px;
+  padding: 14px 16px;
+  background: #0F172A;
+  border: 1px solid #1E293B;
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.notif-page-card:hover {
+  border-color: #334155;
+}
+.notif-page-card-unread {
+  background: rgba(59, 130, 246, 0.03);
+}
+
+.notif-page-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notif-page-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.notif-page-title {
+  color: #F8FAFC;
+  font-size: 13px;
+  font-weight: 600;
+}
+.notif-page-message {
+  color: #CBD5E1;
+  font-size: 12px;
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.notif-page-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748B;
+  font-size: 11px;
+}
+.notif-page-type {
+  text-transform: capitalize;
+  color: #94A3B8;
+}
+
+.notif-page-delete {
+  align-self: start;
+  background: none;
+  border: none;
+  color: #64748B;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 120ms ease, background 120ms ease;
+}
+.notif-page-delete:hover {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ── Pagination ────────────────────────────────────────────────────── */
+
+.notif-page-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
