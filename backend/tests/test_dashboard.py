@@ -1,14 +1,15 @@
 """Sprint 4 — dashboard summary endpoint tests.
 
-Split into four classes:
-- TestDashboardLayout (Task 4.0) — basic shape, auth, and rep-vs-admin filtering
-- TestWarrantyAlerts   (Task 4.1) — warranty-specific fields and check-expiring
-- TestLowStockAlerts   (Task 4.2) — low_stock section shape and item fields
-- TestActivityFeed     (Task 4.3) — /api/activity endpoint
+Split into five classes:
+- TestDashboardLayout      (Task 4.0) — basic shape, auth, rep-vs-admin filtering
+- TestWarrantyAlerts       (Task 4.1) — warranty fields, check-expiring
+- TestLowStockAlerts       (Task 4.2) — low_stock section + items
+- TestActivityFeed         (Task 4.3) — /api/activity endpoint
+- TestIssueTrackerWidget   (Task 4.4) — issues counts, open_issues, quick-start
 
 Module-level `sprint4` marker means every test inherits the sprint marker; the
 per-method `sprint4_N` decorators add the task marker on top so
-`pytest -m sprint4_3` runs only the activity-feed tests.
+`pytest -m sprint4_4` runs only the issue-tracker tests.
 """
 
 import pytest
@@ -193,3 +194,67 @@ class TestActivityFeed:
         """Rep can view activity feed"""
         response = client.get("/api/activity", headers=rep_headers)
         assert response.status_code == 200
+
+
+@pytest.mark.sprint4_4
+class TestIssueTrackerWidget:
+    """Task 4.4 — Issue tracker widget."""
+
+    def test_dashboard_issues_structure(self, client, admin_headers):
+        """Dashboard summary has issues section with correct fields"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        assert "issues" in data
+        issues = data["issues"]
+        assert "open" in issues
+        assert "in_progress" in issues
+        assert "urgent" in issues
+        assert "high" in issues
+
+    def test_dashboard_open_issues_list(self, client, admin_headers):
+        """Dashboard includes list of open issues"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        assert "open_issues" in data
+        assert isinstance(data["open_issues"], list)
+
+    def test_open_issues_sorted_by_priority(self, client, admin_headers):
+        """Open issues are sorted urgent first"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        issues = data.get("open_issues", [])
+        if len(issues) >= 2:
+            priority_order = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
+            for i in range(len(issues) - 1):
+                current = priority_order.get(issues[i]["priority"], 99)
+                next_p = priority_order.get(issues[i + 1]["priority"], 99)
+                assert current <= next_p, "Issues not sorted by priority"
+
+    def test_open_issues_max_five(self, client, admin_headers):
+        """Dashboard returns max 5 open issues"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        assert len(data.get("open_issues", [])) <= 5
+
+    def test_issue_quick_start(self, client, admin_headers):
+        """Admin can start an issue from dashboard context"""
+        from conftest import unique_id
+        # Create machine + issue
+        products = client.get("/api/products", headers=admin_headers).json()
+        rx = next(p for p in products if p["name"] == "RX Machine")
+        serial = unique_id("RX")
+        client.post("/api/machines", headers=admin_headers, json={
+            "serial_number": serial, "product_id": rx["id"],
+            "batch_number": "TEST", "manufacture_date": "2026-01-15"
+        })
+        issue = client.post("/api/issues", headers=admin_headers, json={
+            "machine_id": serial, "title": "Dashboard test issue", "priority": "high"
+        }).json()
+        # Start it
+        response = client.put(
+            f"/api/issues/{issue['id']}/status",
+            headers=admin_headers,
+            json={"status": "in_progress"},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "in_progress"

@@ -125,6 +125,8 @@ class RecentIssueEntry(BaseModel):
     id: str
     machine_id: str
     serial_number: Optional[str] = None
+    machine_serial: Optional[str] = None  # alias kept stable for the widget
+    machine_type: Optional[str] = None    # RX / RO (Task 4.4)
     title: str
     priority: str
     status: str
@@ -141,5 +143,8 @@ class DashboardSummaryResponse(BaseModel):
     low_stock: DashboardLowStock
     recent_activity: list[RecentActivityEntry]
     recent_issues: list[RecentIssueEntry]
+    # `open_issues` is the same payload as `recent_issues`, exposed under the
+    # name the Sprint 4.4 issue-tracker widget consumes.
+    open_issues: list[RecentIssueEntry]
     expiring_warranties: list[ExpiringWarrantyEntry]
     expired_warranties: list[ExpiredWarrantyEntry]

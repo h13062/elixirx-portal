@@ -1162,3 +1162,337 @@
   justify-content: flex-end;
   margin-top: 4px;
 }
+
+/* ─── Issue tracker widget (Sprint 4.4) ─────────────────────────────── */
+
+.dash-issue-ok {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.dash-issue-ok-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dash-issue-ok-title {
+  color: #10B981;
+  font-size: 13px;
+  font-weight: 500;
+}
+.dash-issue-ok-sub {
+  color: #64748B;
+  font-size: 11px;
+}
+
+.dash-issues-section .dash-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash-issues-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.dash-issues-minibar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.dash-issues-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.dash-issues-seg-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.dash-issues-seg-open {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60A5FA;
+}
+.dash-issues-seg-progress {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+.dash-issues-seg-urgent {
+  background: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+}
+.dash-issues-seg-urgent .dash-issues-seg-dot { background: #EF4444; }
+.dash-issues-seg-high {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+.dash-issues-seg-high .dash-issues-seg-dot { background: #F59E0B; }
+
+.dash-issues-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-issue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: #0A0F1C;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+  transition: border-color 120ms ease, box-shadow 200ms ease;
+}
+.dash-issue-card:hover {
+  border-color: #334155;
+}
+.dash-issue-card-urgent {
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.15);
+}
+
+.dash-issue-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.dash-issue-row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dash-issue-row3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.dash-issue-prio-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dash-issue-prio-urgent { background: rgba(239, 68, 68, 0.15); color: #F87171; }
+.dash-issue-prio-high   { background: rgba(245, 158, 11, 0.15); color: #FBBF24; }
+.dash-issue-prio-medium { background: rgba(59, 130, 246, 0.15); color: #60A5FA; }
+.dash-issue-prio-low    { background: rgba(100, 116, 139, 0.15); color: #94A3B8; }
+
+.dash-issue-card-title {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: #F8FAFC;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dash-issue-card-title:hover { color: #3B82F6; }
+
+.dash-issue-type {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dash-issue-type-rx { background: rgba(59, 130, 246, 0.15); color: #60A5FA; }
+.dash-issue-type-ro { background: rgba(20, 184, 166, 0.15); color: #2DD4BF; }
+
+.dash-issue-status-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* status-open / status-in_progress colors are defined above for the legacy
+   widget and re-applied here via the same selectors. */
+
+.dash-issue-byline {
+  color: #64748B;
+  font-size: 10px;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-issue-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.dash-issue-btn {
+  background: #1E293B;
+  border: 1px solid #334155;
+  color: #CBD5E1;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.dash-issue-btn:hover:not(:disabled) {
+  background: #273449;
+  border-color: #475569;
+}
+.dash-issue-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.dash-issue-btn-start {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #F59E0B;
+}
+.dash-issue-btn-start:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #FBBF24;
+}
+
+.dash-issue-btn-resolve {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #10B981;
+}
+.dash-issue-btn-resolve:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.55);
+  color: #34D399;
+}
+
+.dash-issues-more {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* ─── Resolve issue modal ───────────────────────────────────────────── */
+
+.dash-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+.dash-modal {
+  width: 100%;
+  max-width: 440px;
+  background: #0F172A;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+.dash-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #1E293B;
+}
+.dash-modal-title {
+  color: #F8FAFC;
+  font-size: 14px;
+  font-weight: 600;
+}
+.dash-modal-close {
+  background: none;
+  border: none;
+  color: #64748B;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.dash-modal-close:hover { color: #F8FAFC; }
+.dash-modal-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dash-modal-subject {
+  color: #CBD5E1;
+  font-size: 13px;
+  font-weight: 500;
+}
+.dash-modal-label {
+  color: #94A3B8;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+.dash-modal-req { color: #EF4444; }
+.dash-modal-textarea {
+  background: #0A0F1C;
+  border: 1px solid #1E293B;
+  border-radius: 6px;
+  color: #F8FAFC;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 70px;
+}
+.dash-modal-textarea:focus {
+  outline: none;
+  border-color: #3B82F6;
+}
+.dash-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #1E293B;
+}

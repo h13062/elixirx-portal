@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   Activity,
+  CheckCircle,
   Clock,
   Plus,
   CalendarCheck,
@@ -20,7 +21,7 @@ import {
   ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { apiGet } from '../lib/api'
+import { apiGet, apiPut } from '../lib/api'
 import { downloadWarrantyCertificate } from '../lib/download'
 import ExtendWarrantyModal from '../components/ExtendWarrantyModal'
 import './Dashboard.css'
@@ -109,6 +110,8 @@ interface RecentIssueEntry {
   id: string
   machine_id: string
   serial_number: string | null
+  machine_serial: string | null
+  machine_type: string | null
   title: string
   priority: string
   status: string
@@ -125,6 +128,7 @@ interface DashboardSummary {
   low_stock: { count: number; total_tracked: number; items: LowStockItem[] }
   recent_activity: RecentActivityEntry[]
   recent_issues: RecentIssueEntry[]
+  open_issues: RecentIssueEntry[]
   expiring_warranties: ExpiringWarrantyEntry[]
   expired_warranties: ExpiredWarrantyEntry[]
 }
@@ -195,10 +199,6 @@ function formatFullDateTime(value: string): string {
     hour: 'numeric',
     minute: '2-digit',
   })
-}
-
-function priorityClass(p: string): string {
-  return `dash-issue-prio-${p}`
 }
 
 /** A consumable is treated as a "filter" if its product name mentions filter. */
@@ -435,10 +435,13 @@ function AdminView({
           />
         </div>
         <div className="dash-col-right">
-          <OpenIssuesSection
-            items={data?.recent_issues ?? []}
-            count={issuesActive}
+          <IssueTrackerWidget
+            items={data?.open_issues ?? data?.recent_issues ?? []}
+            counts={i}
+            isAdmin={isAdmin}
             navigate={navigate}
+            onRefresh={onRefresh}
+            showToast={showToast}
           />
           <QuickActions
             actions={[
@@ -1027,71 +1030,345 @@ function RecentActivitySection({
   )
 }
 
-function OpenIssuesSection({
+/** Compare-fn: urgent first, then high/medium/low; newer-first within tie. */
+function compareByPriority(a: RecentIssueEntry, b: RecentIssueEntry): number {
+  const rank = (p: string): number => {
+    switch (p) {
+      case 'urgent': return 0
+      case 'high':   return 1
+      case 'medium': return 2
+      case 'low':    return 3
+      default:       return 99
+    }
+  }
+  const diff = rank(a.priority) - rank(b.priority)
+  if (diff !== 0) return diff
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+}
+
+function priorityBorderColor(priority: string): string {
+  switch (priority) {
+    case 'urgent': return '#EF4444'
+    case 'high':   return '#F59E0B'
+    case 'medium': return '#3B82F6'
+    case 'low':    return '#64748B'
+    default:       return '#64748B'
+  }
+}
+
+function IssueTrackerWidget({
   items,
-  count,
+  counts,
+  isAdmin,
   navigate,
+  onRefresh,
+  showToast,
 }: {
   items: RecentIssueEntry[]
-  count: number
+  counts: IssueCounts | undefined
+  isAdmin: boolean
   navigate: ReturnType<typeof useNavigate>
+  onRefresh: () => void
+  showToast: (kind: 'ok' | 'err', msg: string) => void
 }) {
+  const [resolveTarget, setResolveTarget] = useState<RecentIssueEntry | null>(null)
+  const [startingId, setStartingId] = useState<string | null>(null)
+
+  const open = counts?.open ?? 0
+  const inProgress = counts?.in_progress ?? 0
+  const urgent = counts?.urgent ?? 0
+  const high = counts?.high ?? 0
+  const resolved = counts?.resolved ?? 0
+  const activeTotal = open + inProgress
+
+  // Empty state — green "all clear" card.
+  if (activeTotal === 0 || items.length === 0) {
+    return (
+      <section className="dash-issue-ok">
+        <CheckCircle size={20} color="#10B981" />
+        <div className="dash-issue-ok-body">
+          <div className="dash-issue-ok-title">No open issues</div>
+          <div className="dash-issue-ok-sub">
+            {resolved} resolved all time
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  const sorted = [...items].sort(compareByPriority)
+  const visible = sorted.slice(0, 5)
+  const remaining = Math.max(0, activeTotal - visible.length)
+  const hasUrgent = items.some(i => i.priority === 'urgent')
+
+  // Quick-start: PUT status=in_progress with no resolution_notes required.
+  const handleStart = async (issue: RecentIssueEntry) => {
+    setStartingId(issue.id)
+    try {
+      await apiPut(`/api/issues/${issue.id}/status`, { status: 'in_progress' })
+      showToast('ok', 'Issue marked in progress')
+      onRefresh()
+    } catch (e) {
+      showToast('err', (e as Error).message || 'Failed to start')
+    } finally {
+      setStartingId(null)
+    }
+  }
+
+  // Use the appropriate count-badge color depending on severity mix.
+  const headBadgeColor = urgent > 0 ? '#EF4444' : '#3B82F6'
+
   return (
-    <section className="dash-section">
-      <div className="dash-section-head">
-        <span className="dash-section-title">
-          <ListChecks size={13} color="#EF4444" /> OPEN ISSUES
-          {count > 0 && <span className="dash-section-count">{count}</span>}
-        </span>
-      </div>
-      {items.length === 0 ? (
-        <div className="dash-empty">No open issues</div>
-      ) : (
-        <ul className="dash-issue-list">
-          {items.map(it => (
-            <li
-              key={it.id}
-              className={`dash-issue-row ${priorityClass(it.priority)}`}
-              onClick={() => navigate('/issues')}
+    <>
+      <section className="dash-section dash-issues-section">
+        <div className="dash-section-head">
+          <span className="dash-section-title">
+            <ListChecks size={13} color="#EF4444" /> OPEN ISSUES
+            <span
+              className="dash-issues-count-badge"
+              style={{ background: headBadgeColor }}
             >
-              <div className="dash-issue-title">{it.title}</div>
-              <div className="dash-issue-meta">
-                {it.serial_number ? (
+              {activeTotal}
+            </span>
+            {hasUrgent && <span className="dash-pulse-dot" />}
+          </span>
+          <button
+            className="dash-view-all"
+            onClick={() => navigate('/issues?status=open')}
+          >
+            View All <ArrowRight size={11} />
+          </button>
+        </div>
+
+        {/* Mini summary bar */}
+        <div className="dash-issues-minibar">
+          {open > 0 && (
+            <span className="dash-issues-seg dash-issues-seg-open">
+              {open} Open
+            </span>
+          )}
+          {inProgress > 0 && (
+            <span className="dash-issues-seg dash-issues-seg-progress">
+              {inProgress} In Progress
+            </span>
+          )}
+          {urgent > 0 && (
+            <span className="dash-issues-seg dash-issues-seg-urgent">
+              <span className="dash-issues-seg-dot" /> {urgent} Urgent
+            </span>
+          )}
+          {high > 0 && (
+            <span className="dash-issues-seg dash-issues-seg-high">
+              <span className="dash-issues-seg-dot" /> {high} High
+            </span>
+          )}
+        </div>
+
+        {/* Cards */}
+        <ul className="dash-issues-list">
+          {visible.map(issue => {
+            const borderColor = priorityBorderColor(issue.priority)
+            const serial = issue.machine_serial || issue.serial_number
+            const isUrgent = issue.priority === 'urgent'
+            const machineType = issue.machine_type
+            return (
+              <li
+                key={issue.id}
+                className={`dash-issue-card${isUrgent ? ' dash-issue-card-urgent' : ''}`}
+                style={{ borderLeft: `3px solid ${borderColor}` }}
+              >
+                <div className="dash-issue-row1">
+                  <span
+                    className={`dash-issue-prio-badge dash-issue-prio-${issue.priority}`}
+                  >
+                    {issue.priority}
+                  </span>
                   <button
                     type="button"
-                    className="dash-mono dash-issue-serial-link"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/machines/${it.serial_number}`)
-                    }}
+                    className="dash-issue-card-title"
+                    onClick={() => navigate('/issues?status=open')}
                   >
-                    {it.serial_number}
+                    {issue.title}
                   </button>
-                ) : (
-                  <span className="dash-mono dash-issue-serial">
-                    {it.machine_id.slice(0, 8)}
+                </div>
+
+                <div className="dash-issue-row2">
+                  {serial ? (
+                    <button
+                      type="button"
+                      className="dash-mono dash-issue-serial-link"
+                      onClick={() => navigate(`/machines/${serial}`)}
+                    >
+                      {serial}
+                    </button>
+                  ) : (
+                    <span className="dash-mono dash-issue-serial">
+                      {issue.machine_id.slice(0, 8)}
+                    </span>
+                  )}
+                  {machineType && (
+                    <span
+                      className={`dash-issue-type dash-issue-type-${machineType.toLowerCase()}`}
+                    >
+                      {machineType}
+                    </span>
+                  )}
+                  <span
+                    className={`dash-issue-status-badge dash-issue-status-${issue.status}`}
+                  >
+                    {issue.status.replace('_', ' ')}
                   </span>
-                )}
-                <span className={`dash-issue-status dash-issue-status-${it.status}`}>
-                  {it.status.replace('_', ' ')}
-                </span>
-                {it.reported_by_name && (
-                  <span className="dash-issue-by">by {it.reported_by_name}</span>
-                )}
-              </div>
-            </li>
-          ))}
+                </div>
+
+                <div className="dash-issue-row3">
+                  <span className="dash-issue-byline">
+                    {issue.reported_by_name
+                      ? `Reported by ${issue.reported_by_name}`
+                      : 'Reported'}
+                    {' · '}
+                    {formatRelative(issue.created_at)}
+                  </span>
+                  {isAdmin && (
+                    <div className="dash-issue-actions">
+                      {issue.status === 'open' && (
+                        <button
+                          type="button"
+                          className="dash-issue-btn dash-issue-btn-start"
+                          onClick={() => handleStart(issue)}
+                          disabled={startingId === issue.id}
+                        >
+                          {startingId === issue.id ? '…' : 'Start'}
+                        </button>
+                      )}
+                      {issue.status === 'in_progress' && (
+                        <button
+                          type="button"
+                          className="dash-issue-btn dash-issue-btn-resolve"
+                          onClick={() => setResolveTarget(issue)}
+                        >
+                          Resolve
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </li>
+            )
+          })}
         </ul>
+
+        {remaining > 0 && (
+          <div className="dash-issues-more">
+            <button
+              className="dash-view-all"
+              onClick={() => navigate('/issues?status=open')}
+            >
+              and {remaining} more <ArrowRight size={11} />
+            </button>
+          </div>
+        )}
+      </section>
+
+      {resolveTarget && (
+        <ResolveIssueModal
+          issue={resolveTarget}
+          onClose={() => setResolveTarget(null)}
+          onSuccess={() => {
+            showToast('ok', 'Issue resolved')
+            setResolveTarget(null)
+            onRefresh()
+          }}
+          onError={(msg) => showToast('err', msg)}
+        />
       )}
-      <div className="dash-alert-foot">
-        <button
-          className="dash-view-all"
-          onClick={() => navigate('/issues')}
-        >
-          View All <ArrowRight size={11} />
-        </button>
+    </>
+  )
+}
+
+function ResolveIssueModal({
+  issue,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  issue: RecentIssueEntry
+  onClose: () => void
+  onSuccess: () => void
+  onError: (msg: string) => void
+}) {
+  const [notes, setNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const trimmed = notes.trim()
+
+  const submit = async () => {
+    if (!trimmed) {
+      onError('Resolution notes are required')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await apiPut(`/api/issues/${issue.id}/status`, {
+        status: 'resolved',
+        resolution_notes: trimmed,
+      })
+      onSuccess()
+    } catch (e) {
+      onError((e as Error).message || 'Failed to resolve')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="dash-modal-backdrop" onClick={onClose}>
+      <div
+        className="dash-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="dash-modal-head">
+          <span className="dash-modal-title">Resolve issue</span>
+          <button
+            type="button"
+            className="dash-modal-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <div className="dash-modal-body">
+          <div className="dash-modal-subject">{issue.title}</div>
+          <label className="dash-modal-label">
+            Resolution notes <span className="dash-modal-req">*</span>
+          </label>
+          <textarea
+            className="dash-modal-textarea"
+            rows={4}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="What was done to resolve this issue?"
+            autoFocus
+          />
+        </div>
+        <div className="dash-modal-foot">
+          <button
+            type="button"
+            className="dash-issue-btn"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="dash-issue-btn dash-issue-btn-resolve"
+            onClick={submit}
+            disabled={submitting || !trimmed}
+          >
+            {submitting ? 'Resolving…' : 'Resolve'}
+          </button>
+        </div>
       </div>
-    </section>
+    </div>
   )
 }
 

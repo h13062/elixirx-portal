@@ -197,7 +197,7 @@ def _build_recent_issues(filter_user_id: Optional[str]) -> list[RecentIssueEntry
         supabase_admin.table("machine_issues")
         .select(
             "id, machine_id, title, priority, status, reported_by, "
-            "created_at, machines(serial_number), "
+            "created_at, machines(serial_number, products(name)), "
             "reporter:profiles!reported_by(full_name)"
         )
         .in_("status", ["open", "in_progress"])
@@ -216,10 +216,17 @@ def _build_recent_issues(filter_user_id: Optional[str]) -> list[RecentIssueEntry
     out: list[RecentIssueEntry] = []
     for r in rows[:RECENT_ISSUES_LIMIT]:
         machine_join = r.get("machines") or {}
-        serial = (
-            machine_join.get("serial_number")
-            if isinstance(machine_join, dict) else None
-        )
+        if isinstance(machine_join, dict):
+            serial = machine_join.get("serial_number")
+            product = machine_join.get("products")
+            product_name = (
+                product.get("name") if isinstance(product, dict) else None
+            )
+        else:
+            serial = None
+            product_name = None
+        machine_type = _derive_machine_type(product_name) or \
+            _derive_machine_type_from_serial(serial)
         rep_join = r.get("reporter") or {}
         rep_name = (
             rep_join.get("full_name")
@@ -229,6 +236,8 @@ def _build_recent_issues(filter_user_id: Optional[str]) -> list[RecentIssueEntry
             id=r["id"],
             machine_id=r["machine_id"],
             serial_number=serial,
+            machine_serial=serial,
+            machine_type=machine_type,
             title=r["title"],
             priority=r["priority"],
             status=r["status"],
@@ -405,6 +414,7 @@ def dashboard_summary(current_user: dict = Depends(get_current_user)):
             low_stock=low_stock,
             recent_activity=recent_activity,
             recent_issues=recent_issues,
+            open_issues=recent_issues,  # Sprint 4.4 — same payload, widget-friendly name
             expiring_warranties=expiring_warranties,
             expired_warranties=expired_warranties,
         )
