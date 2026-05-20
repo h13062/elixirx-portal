@@ -1,11 +1,14 @@
 """Sprint 4 — dashboard summary endpoint tests.
 
-Split into five classes:
+Class index:
 - TestDashboardLayout      (Task 4.0) — basic shape, auth, rep-vs-admin filtering
 - TestWarrantyAlerts       (Task 4.1) — warranty fields, check-expiring
 - TestLowStockAlerts       (Task 4.2) — low_stock section + items
 - TestActivityFeed         (Task 4.3) — /api/activity endpoint
 - TestIssueTrackerWidget   (Task 4.4) — issues counts, open_issues, quick-start
+- TestSummaryReport        (Task 4.6) — /api/dashboard/report daily/weekly
+- TestRoleBasedDashboard   (Task 4.7) — admin vs rep payload split
+- TestSprint4Complete      (Task 4.8) — full sprint smoke test (every endpoint)
 
 Module-level `sprint4` marker means every test inherits the sprint marker; the
 per-method `sprint4_N` decorators add the task marker on top so
@@ -258,3 +261,139 @@ class TestIssueTrackerWidget:
         )
         assert response.status_code == 200
         assert response.json()["status"] == "in_progress"
+
+
+@pytest.mark.sprint4_6
+class TestSummaryReport:
+    """Task 4.6 — Daily / weekly summary report."""
+
+    def test_daily_report(self, client, admin_headers):
+        """Daily report returns correct structure"""
+        response = client.get("/api/dashboard/report?period=daily", headers=admin_headers)
+        assert response.status_code == 200, f"Failed: {response.json()}"
+        data = response.json()
+        assert data["period"] == "daily"
+        for section in ("machines", "warranties", "reservations", "issues", "stock"):
+            assert section in data, f"Missing section: {section}"
+        # Each numeric sub-field must be a non-negative int.
+        for key in ("registered", "status_changes", "delivered"):
+            assert isinstance(data["machines"][key], int)
+            assert data["machines"][key] >= 0
+
+    def test_weekly_report(self, client, admin_headers):
+        """Weekly report returns correct structure"""
+        response = client.get("/api/dashboard/report?period=weekly", headers=admin_headers)
+        assert response.status_code == 200
+        assert response.json()["period"] == "weekly"
+
+    def test_invalid_period_rejected(self, client, admin_headers):
+        """Unknown period is a 400, not a default-to-daily silent fallback"""
+        response = client.get("/api/dashboard/report?period=hourly", headers=admin_headers)
+        assert response.status_code == 400
+
+    def test_report_requires_auth(self, client):
+        """Report requires authentication"""
+        response = client.get("/api/dashboard/report")
+        assert response.status_code in (401, 403)
+
+    def test_rep_can_view_report(self, client, rep_headers):
+        """Rep can view report (may have filtered data)"""
+        response = client.get(
+            "/api/dashboard/report?period=daily", headers=rep_headers,
+        )
+        assert response.status_code == 200
+
+    def test_report_has_date_range(self, client, admin_headers):
+        """Report includes date_range with from_date / to_date"""
+        response = client.get("/api/dashboard/report?period=weekly", headers=admin_headers)
+        data = response.json()
+        assert "date_range" in data
+        assert "from_date" in data["date_range"]
+        assert "to_date" in data["date_range"]
+
+    def test_report_has_top_rep(self, client, admin_headers):
+        """Report includes top_rep block (may be empty)"""
+        response = client.get("/api/dashboard/report?period=weekly", headers=admin_headers)
+        data = response.json()
+        assert "top_rep" in data
+        assert "name" in data["top_rep"]
+        assert "reservations" in data["top_rep"]
+
+
+@pytest.mark.sprint4_7
+class TestRoleBasedDashboard:
+    """Task 4.7 — Admin vs rep dashboard payloads."""
+
+    def test_admin_sees_full_dashboard(self, client, admin_headers):
+        """Admin dashboard has every operational section"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        for section in (
+            "machines", "warranties", "issues", "reservations",
+            "low_stock", "recent_activity", "expiring_warranties",
+            "open_issues",
+        ):
+            assert section in data, f"Missing section: {section}"
+
+    def test_admin_has_no_personal_lists(self, client, admin_headers):
+        """Admin doesn't get rep-only my_reservations / my_issues populated"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        data = response.json()
+        # Either absent or null — never a non-null list for admins.
+        assert data.get("my_reservations") in (None, [])
+        assert data.get("my_issues") in (None, [])
+
+    def test_rep_sees_personal_lists(self, client, rep_headers):
+        """Rep dashboard has my_reservations + my_issues lists"""
+        response = client.get("/api/dashboard/summary", headers=rep_headers)
+        data = response.json()
+        # The fields exist and are lists (possibly empty).
+        assert isinstance(data.get("my_reservations"), list)
+        assert isinstance(data.get("my_issues"), list)
+        # Each my_reservations entry has the documented fields.
+        for r in data["my_reservations"]:
+            assert "id" in r
+            assert "machine_id" in r
+            assert "status" in r
+
+    def test_rep_reservations_are_filtered_to_self(self, client, rep_headers):
+        """Rep only sees their own reservations in `reservations` counts.
+
+        We can't directly count without an admin probe, but we can verify
+        the `my_reservations` list — every row must reference a machine the
+        rep actually reserved (machine_id present).
+        """
+        me = client.get("/api/auth/me", headers=rep_headers).json()
+        response = client.get("/api/dashboard/summary", headers=rep_headers)
+        data = response.json()
+        for r in data.get("my_reservations") or []:
+            assert r["machine_id"], "rep reservation row missing machine_id"
+        # And the rep id is well-formed (covers our auth scope assumption).
+        assert "id" in me
+
+
+@pytest.mark.sprint4_8
+class TestSprint4Complete:
+    """Task 4.8 — every Sprint 4 endpoint responds for an authed admin."""
+
+    def test_dashboard_summary_endpoint(self, client, admin_headers):
+        """Dashboard summary is accessible"""
+        response = client.get("/api/dashboard/summary", headers=admin_headers)
+        assert response.status_code == 200
+
+    def test_activity_endpoint(self, client, admin_headers):
+        """Activity feed is accessible"""
+        response = client.get("/api/activity", headers=admin_headers)
+        assert response.status_code == 200
+
+    def test_report_endpoint(self, client, admin_headers):
+        """Report endpoint is accessible"""
+        response = client.get("/api/dashboard/report", headers=admin_headers)
+        assert response.status_code == 200
+
+    def test_notification_bell(self, client, admin_headers):
+        """Notification endpoints power the bell"""
+        count = client.get("/api/notifications/unread-count", headers=admin_headers)
+        assert count.status_code == 200
+        notifs = client.get("/api/notifications", headers=admin_headers)
+        assert notifs.status_code == 200

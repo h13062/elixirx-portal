@@ -135,6 +135,17 @@ class RecentIssueEntry(BaseModel):
     created_at: datetime
 
 
+class MyReservationEntry(BaseModel):
+    """A rep's own recent reservation (Sprint 4 Task 4.7)."""
+    id: str
+    machine_id: str
+    serial_number: Optional[str] = None
+    machine_type: Optional[str] = None
+    status: str
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+
+
 class DashboardSummaryResponse(BaseModel):
     machines: DashboardMachineCounts
     warranties: DashboardWarrantyCounts
@@ -148,3 +159,62 @@ class DashboardSummaryResponse(BaseModel):
     open_issues: list[RecentIssueEntry]
     expiring_warranties: list[ExpiringWarrantyEntry]
     expired_warranties: list[ExpiredWarrantyEntry]
+    # Rep-only personal data. `None` for admins so admins don't accidentally
+    # render an empty "my issues" list. (Sprint 4 Task 4.7.)
+    my_reservations: Optional[list[MyReservationEntry]] = None
+    my_issues: Optional[list[RecentIssueEntry]] = None
+
+
+# ─── Summary report (Sprint 4 Task 4.6) ───────────────────────────────────
+
+class ReportDateRange(BaseModel):
+    """Inclusive date range that the report covers."""
+    from_date: date
+    to_date: date
+
+
+class ReportMachines(BaseModel):
+    registered: int = 0
+    status_changes: int = 0
+    delivered: int = 0
+
+
+class ReportWarranties(BaseModel):
+    created: int = 0
+    expiring_this_week: int = 0
+    expired_in_period: int = 0
+
+
+class ReportReservations(BaseModel):
+    created: int = 0
+    approved: int = 0
+    denied: int = 0
+    expired: int = 0
+
+
+class ReportIssues(BaseModel):
+    opened: int = 0
+    resolved: int = 0
+    average_resolution_hours: Optional[float] = None
+
+
+class ReportStock(BaseModel):
+    batches_added: int = 0
+    shipments: int = 0
+    low_stock_items: int = 0
+
+
+class ReportTopRep(BaseModel):
+    name: Optional[str] = None
+    reservations: int = 0
+
+
+class SummaryReportResponse(BaseModel):
+    period: str  # "daily" | "weekly"
+    date_range: ReportDateRange
+    machines: ReportMachines
+    warranties: ReportWarranties
+    reservations: ReportReservations
+    issues: ReportIssues
+    stock: ReportStock
+    top_rep: ReportTopRep

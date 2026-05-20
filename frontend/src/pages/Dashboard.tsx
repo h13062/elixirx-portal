@@ -120,6 +120,16 @@ interface RecentIssueEntry {
   created_at: string
 }
 
+interface MyReservationEntry {
+  id: string
+  machine_id: string
+  serial_number: string | null
+  machine_type: string | null
+  status: string
+  expires_at: string | null
+  created_at: string
+}
+
 interface DashboardSummary {
   machines: MachineCounts
   warranties: WarrantyCounts
@@ -131,6 +141,21 @@ interface DashboardSummary {
   open_issues: RecentIssueEntry[]
   expiring_warranties: ExpiringWarrantyEntry[]
   expired_warranties: ExpiredWarrantyEntry[]
+  // Rep-only fields (Sprint 4 Task 4.7); `null` for admins.
+  my_reservations: MyReservationEntry[] | null
+  my_issues: RecentIssueEntry[] | null
+}
+
+// Sprint 4 Task 4.6 — `/api/dashboard/report`
+interface ReportPayload {
+  period: 'daily' | 'weekly'
+  date_range: { from_date: string; to_date: string }
+  machines: { registered: number; status_changes: number; delivered: number }
+  warranties: { created: number; expiring_this_week: number; expired_in_period: number }
+  reservations: { created: number; approved: number; denied: number; expired: number }
+  issues: { opened: number; resolved: number; average_resolution_hours: number | null }
+  stock: { batches_added: number; shipments: number; low_stock_items: number }
+  top_rep: { name: string | null; reservations: number }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -454,6 +479,9 @@ function AdminView({
           />
         </div>
       </div>
+
+      {/* Sprint 4 Task 4.6 — Daily / weekly summary report (admin only) */}
+      <SummaryReport />
     </>
   )
 }
@@ -518,6 +546,18 @@ function RepView({
         />
       </div>
 
+      {/* Sprint 4 Task 4.7 — rep's own recent reservations + issues */}
+      <div className="dash-rep-lists">
+        <MyReservationsList
+          items={data?.my_reservations ?? []}
+          navigate={navigate}
+        />
+        <MyIssuesList
+          items={data?.my_issues ?? []}
+          navigate={navigate}
+        />
+      </div>
+
       <QuickActions
         actions={[
           { label: 'Reserve Machine', icon: <CalendarCheck size={14} />, to: '/inventory?tab=machines&status=available' },
@@ -529,6 +569,143 @@ function RepView({
         wide
       />
     </>
+  )
+}
+
+// ─── Rep-only: my recent reservations / issues (Task 4.7) ─────────────────
+
+function reservationStatusColor(status: string): string {
+  switch (status) {
+    case 'pending':   return '#F59E0B'
+    case 'approved':  return '#10B981'
+    case 'denied':    return '#EF4444'
+    case 'expired':   return '#94A3B8'
+    case 'cancelled': return '#64748B'
+    case 'converted': return '#3B82F6'
+    default:          return '#94A3B8'
+  }
+}
+
+function MyReservationsList({
+  items,
+  navigate,
+}: {
+  items: MyReservationEntry[]
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  return (
+    <section className="dash-section">
+      <div className="dash-section-head">
+        <span className="dash-section-title">
+          <CalendarCheck size={13} color="#3B82F6" /> MY RECENT RESERVATIONS
+        </span>
+        <button
+          className="dash-view-all"
+          onClick={() => navigate('/inventory?tab=reservations')}
+        >
+          View All <ArrowRight size={11} />
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <div className="dash-empty">No reservations yet</div>
+      ) : (
+        <ul className="dash-myitem-list">
+          {items.map(r => (
+            <li
+              key={r.id}
+              className="dash-myitem-row"
+              onClick={() => r.serial_number && navigate(`/machines/${r.serial_number}`)}
+            >
+              <span
+                className="dash-myitem-dot"
+                style={{ background: reservationStatusColor(r.status) }}
+              />
+              <div className="dash-myitem-body">
+                <div className="dash-myitem-headline">
+                  <span className="dash-mono">
+                    {r.serial_number || r.machine_id.slice(0, 8)}
+                  </span>
+                  {r.machine_type && (
+                    <span className={`dash-activity-type dash-activity-type-${r.machine_type.toLowerCase()}`}>
+                      {r.machine_type}
+                    </span>
+                  )}
+                  <span
+                    className="dash-myitem-status"
+                    style={{ color: reservationStatusColor(r.status) }}
+                  >
+                    {r.status}
+                  </span>
+                </div>
+                <div className="dash-myitem-time">
+                  {formatRelative(r.created_at)}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function MyIssuesList({
+  items,
+  navigate,
+}: {
+  items: RecentIssueEntry[]
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  return (
+    <section className="dash-section">
+      <div className="dash-section-head">
+        <span className="dash-section-title">
+          <AlertTriangle size={13} color="#F59E0B" /> MY RECENT ISSUES
+        </span>
+        <button
+          className="dash-view-all"
+          onClick={() => navigate('/issues')}
+        >
+          View All <ArrowRight size={11} />
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <div className="dash-empty">No issues reported</div>
+      ) : (
+        <ul className="dash-myitem-list">
+          {items.map(it => {
+            const serial = it.machine_serial || it.serial_number
+            return (
+              <li
+                key={it.id}
+                className="dash-myitem-row"
+                onClick={() => navigate('/issues')}
+              >
+                <span
+                  className={`dash-myitem-prio-dot dash-issue-prio-${it.priority}`}
+                />
+                <div className="dash-myitem-body">
+                  <div className="dash-myitem-title">{it.title}</div>
+                  <div className="dash-myitem-meta">
+                    {serial && (
+                      <span className="dash-mono dash-myitem-serial">{serial}</span>
+                    )}
+                    <span
+                      className={`dash-issue-status-badge dash-issue-status-${it.status}`}
+                    >
+                      {it.status.replace('_', ' ')}
+                    </span>
+                    <span className="dash-myitem-time">
+                      {formatRelative(it.created_at)}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -1282,6 +1459,170 @@ function IssueTrackerWidget({
         />
       )}
     </>
+  )
+}
+
+// ─── Summary report (Sprint 4 Task 4.6) ────────────────────────────────
+
+function SummaryReport() {
+  const [period, setPeriod] = useState<'daily' | 'weekly'>('daily')
+  const [data, setData] = useState<ReportPayload | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    apiGet<ReportPayload>(`/api/dashboard/report?period=${period}`)
+      .then(d => { if (!cancelled) setData(d) })
+      .catch(e => { if (!cancelled) setError((e as Error).message || 'Failed to load report') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [period])
+
+  const title = period === 'daily' ? "TODAY'S SUMMARY" : "THIS WEEK'S SUMMARY"
+
+  return (
+    <section className="dash-report">
+      <div className="dash-report-head">
+        <span className="dash-report-title">
+          <Activity size={13} color="#64748B" /> {title}
+        </span>
+        <div className="dash-report-tabs" role="tablist">
+          <button
+            role="tab"
+            aria-selected={period === 'daily'}
+            className={`dash-report-tab${period === 'daily' ? ' dash-report-tab-active' : ''}`}
+            onClick={() => setPeriod('daily')}
+          >
+            Daily
+          </button>
+          <button
+            role="tab"
+            aria-selected={period === 'weekly'}
+            className={`dash-report-tab${period === 'weekly' ? ' dash-report-tab-active' : ''}`}
+            onClick={() => setPeriod('weekly')}
+          >
+            Weekly
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="dash-report-error">
+          <AlertTriangle size={14} /> {error}
+        </div>
+      )}
+
+      <div className="dash-report-grid">
+        <ReportCell
+          label="Machines registered"
+          value={data?.machines.registered}
+          subtitle={`${data?.machines.delivered ?? 0} delivered`}
+          loading={loading}
+        />
+        <ReportCell
+          label="Machines delivered"
+          value={data?.machines.delivered}
+          subtitle="in period"
+          loading={loading}
+        />
+        <ReportCell
+          label="Status changes"
+          value={data?.machines.status_changes}
+          subtitle="all transitions"
+          loading={loading}
+        />
+
+        <ReportCell
+          label="Warranties created"
+          value={data?.warranties.created}
+          subtitle={
+            data
+              ? `${data.warranties.expiring_this_week} expiring this week`
+              : ''
+          }
+          loading={loading}
+        />
+        <ReportCell
+          label="Reservations"
+          value={data?.reservations.created}
+          subtitle={
+            data
+              ? `${data.reservations.approved} approved · ${data.reservations.denied} denied`
+              : ''
+          }
+          loading={loading}
+        />
+        <ReportCell
+          label="Issues"
+          value={data?.issues.opened}
+          subtitle={
+            data
+              ? `${data.issues.resolved} resolved` +
+                (data.issues.average_resolution_hours != null
+                  ? ` · ~${data.issues.average_resolution_hours}h avg`
+                  : '')
+              : ''
+          }
+          loading={loading}
+        />
+
+        <ReportCell
+          label="Batches added"
+          value={data?.stock.batches_added}
+          subtitle={`${data?.stock.low_stock_items ?? 0} below threshold`}
+          loading={loading}
+        />
+        <ReportCell
+          label="Shipments"
+          value={data?.stock.shipments}
+          subtitle="batches shipped"
+          loading={loading}
+        />
+        <ReportCell
+          label="Top rep"
+          value={
+            data?.top_rep.reservations !== undefined && data.top_rep.reservations > 0
+              ? data.top_rep.reservations
+              : undefined
+          }
+          subtitle={
+            data?.top_rep.name
+              ? `${data.top_rep.name} · reservations`
+              : '—'
+          }
+          loading={loading}
+        />
+      </div>
+    </section>
+  )
+}
+
+function ReportCell({
+  label,
+  value,
+  subtitle,
+  loading,
+}: {
+  label: string
+  value: number | undefined
+  subtitle: string
+  loading: boolean
+}) {
+  return (
+    <div className="dash-report-cell">
+      <div className="dash-report-cell-label">{label}</div>
+      {loading ? (
+        <div className="dash-report-cell-skel" />
+      ) : (
+        <div className="dash-report-cell-value">
+          {value === undefined || value === null ? '—' : value}
+        </div>
+      )}
+      <div className="dash-report-cell-sub">{subtitle}</div>
+    </div>
   )
 }
 

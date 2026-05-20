@@ -36,8 +36,17 @@ from app.models.dashboard_models import (
     ExpiredWarrantyEntry,
     ExpiringWarrantyEntry,
     LowStockItem,
+    MyReservationEntry,
     RecentActivityEntry,
     RecentIssueEntry,
+    ReportDateRange,
+    ReportIssues,
+    ReportMachines,
+    ReportReservations,
+    ReportStock,
+    ReportTopRep,
+    ReportWarranties,
+    SummaryReportResponse,
 )
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
@@ -351,6 +360,96 @@ def _build_recent_activity() -> list[RecentActivityEntry]:
     return out
 
 
+def _build_my_reservations(user_id: str) -> list[MyReservationEntry]:
+    """Last 5 reservations created by the given rep (Task 4.7)."""
+    rows = (
+        supabase_admin.table("reservations")
+        .select(
+            "id, machine_id, status, expires_at, created_at, "
+            "machines(serial_number, products(name))"
+        )
+        .eq("reserved_by", user_id)
+        .order("created_at", desc=True)
+        .limit(5)
+        .execute()
+        .data
+        or []
+    )
+    out: list[MyReservationEntry] = []
+    for r in rows:
+        machine_join = r.get("machines") or {}
+        if isinstance(machine_join, dict):
+            serial = machine_join.get("serial_number")
+            product = machine_join.get("products")
+            product_name = (
+                product.get("name") if isinstance(product, dict) else None
+            )
+        else:
+            serial = None
+            product_name = None
+        machine_type = _derive_machine_type(product_name) or \
+            _derive_machine_type_from_serial(serial)
+        out.append(MyReservationEntry(
+            id=r["id"],
+            machine_id=r["machine_id"],
+            serial_number=serial,
+            machine_type=machine_type,
+            status=r["status"],
+            expires_at=r.get("expires_at"),
+            created_at=r["created_at"],
+        ))
+    return out
+
+
+def _build_my_issues(user_id: str) -> list[RecentIssueEntry]:
+    """Last 5 issues reported by the given rep (Task 4.7).
+
+    Unlike `_build_recent_issues` this isn't filtered by status — a rep
+    looking at "my recent issues" wants to see the resolved ones too.
+    """
+    rows = (
+        supabase_admin.table("machine_issues")
+        .select(
+            "id, machine_id, title, priority, status, reported_by, "
+            "created_at, machines(serial_number, products(name))"
+        )
+        .eq("reported_by", user_id)
+        .order("created_at", desc=True)
+        .limit(5)
+        .execute()
+        .data
+        or []
+    )
+    out: list[RecentIssueEntry] = []
+    for r in rows:
+        machine_join = r.get("machines") or {}
+        if isinstance(machine_join, dict):
+            serial = machine_join.get("serial_number")
+            product = machine_join.get("products")
+            product_name = (
+                product.get("name") if isinstance(product, dict) else None
+            )
+        else:
+            serial = None
+            product_name = None
+        machine_type = _derive_machine_type(product_name) or \
+            _derive_machine_type_from_serial(serial)
+        out.append(RecentIssueEntry(
+            id=r["id"],
+            machine_id=r["machine_id"],
+            serial_number=serial,
+            machine_serial=serial,
+            machine_type=machine_type,
+            title=r["title"],
+            priority=r["priority"],
+            status=r["status"],
+            reported_by=r.get("reported_by"),
+            reported_by_name=None,  # rep is the caller — name not needed
+            created_at=r["created_at"],
+        ))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # GET /api/dashboard/summary
 # ---------------------------------------------------------------------------
@@ -406,6 +505,20 @@ def dashboard_summary(current_user: dict = Depends(get_current_user)):
         except Exception:
             recent_activity = []
 
+        # Rep-only personal data (Sprint 4 Task 4.7). Admin gets `None` so the
+        # frontend can branch on presence rather than role.
+        my_reservations: Optional[list[MyReservationEntry]] = None
+        my_issues: Optional[list[RecentIssueEntry]] = None
+        if rep_filter_id is not None:
+            try:
+                my_reservations = _build_my_reservations(rep_filter_id)
+            except Exception:
+                my_reservations = []
+            try:
+                my_issues = _build_my_issues(rep_filter_id)
+            except Exception:
+                my_issues = []
+
         return DashboardSummaryResponse(
             machines=machines,
             warranties=warranties,
@@ -417,6 +530,8 @@ def dashboard_summary(current_user: dict = Depends(get_current_user)):
             open_issues=recent_issues,  # Sprint 4.4 — same payload, widget-friendly name
             expiring_warranties=expiring_warranties,
             expired_warranties=expired_warranties,
+            my_reservations=my_reservations,
+            my_issues=my_issues,
         )
     except Exception as e:
         raise HTTPException(
@@ -571,3 +686,259 @@ def activity_feed(
             time_ago=_format_time_ago(r["created_at"]),
         ))
     return out
+
+
+# ---------------------------------------------------------------------------
+# GET /api/dashboard/report  (Sprint 4 Task 4.6 — daily / weekly summary)
+# ---------------------------------------------------------------------------
+
+VALID_PERIODS = ("daily", "weekly")
+
+
+def _count_in(table: str, time_col: str, since_iso: str, **eq_filters) -> int:
+    """COUNT(*) helper — `time_col >= since_iso` plus optional `=` filters."""
+    q = supabase_admin.table(table).select("id", count="exact").gte(time_col, since_iso)
+    for k, v in eq_filters.items():
+        q = q.eq(k, v)
+    try:
+        return q.execute().count or 0
+    except Exception:
+        return 0
+
+
+def _count_between(table: str, time_col: str, since_iso: str, until_iso: str, **eq_filters) -> int:
+    """COUNT(*) helper — `time_col` between two ISO timestamps."""
+    q = (
+        supabase_admin.table(table)
+        .select("id", count="exact")
+        .gte(time_col, since_iso)
+        .lte(time_col, until_iso)
+    )
+    for k, v in eq_filters.items():
+        q = q.eq(k, v)
+    try:
+        return q.execute().count or 0
+    except Exception:
+        return 0
+
+
+def _avg_resolution_hours(since_iso: str) -> Optional[float]:
+    """Average hours between created_at and updated_at for issues resolved
+    or closed in the given period. `None` if no qualifying issues."""
+    try:
+        rows = (
+            supabase_admin.table("machine_issues")
+            .select("created_at, updated_at, status")
+            .in_("status", ["resolved", "closed"])
+            .gte("updated_at", since_iso)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return None
+
+    total_hours = 0.0
+    n = 0
+    for r in rows:
+        created = _parse_ts(r.get("created_at"))
+        updated = _parse_ts(r.get("updated_at"))
+        if created and updated and updated >= created:
+            total_hours += (updated - created).total_seconds() / 3600
+            n += 1
+    return round(total_hours / n, 2) if n else None
+
+
+def _parse_ts(value) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        s = str(value).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+def _build_top_rep(since_iso: str) -> ReportTopRep:
+    """Rep with the most reservations created in period."""
+    try:
+        rows = (
+            supabase_admin.table("reservations")
+            .select("reserved_by")
+            .gte("created_at", since_iso)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return ReportTopRep()
+
+    counts: dict[str, int] = {}
+    for r in rows:
+        uid = r.get("reserved_by")
+        if uid:
+            counts[uid] = counts.get(uid, 0) + 1
+    if not counts:
+        return ReportTopRep()
+    top_uid, top_count = max(counts.items(), key=lambda kv: kv[1])
+
+    name: Optional[str] = None
+    try:
+        prof = (
+            supabase_admin.table("profiles")
+            .select("full_name")
+            .eq("id", top_uid)
+            .execute()
+            .data
+            or []
+        )
+        if prof:
+            name = prof[0].get("full_name")
+    except Exception:
+        pass
+    return ReportTopRep(name=name, reservations=top_count)
+
+
+def _low_stock_count() -> int:
+    """Reuse the low-stock builder's logic to count items currently below threshold."""
+    try:
+        return _build_low_stock().count
+    except Exception:
+        return 0
+
+
+@router.get("/dashboard/report", response_model=SummaryReportResponse)
+def dashboard_report(
+    period: str = "daily",
+    current_user: dict = Depends(get_current_user),
+):
+    """Daily (last 24h) or weekly (last 7d) snapshot of activity.
+
+    All counts use `created_at >= period_start`; warranty `expired_in_period`
+    uses `end_date` between period_start and today. Each section is
+    best-effort — a query failure surfaces zeros for that section, not a
+    500 for the whole report.
+    """
+    if period not in VALID_PERIODS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"period must be one of {VALID_PERIODS}",
+        )
+
+    now = datetime.now(timezone.utc)
+    days_back = 1 if period == "daily" else 7
+    period_start_dt = now - timedelta(days=days_back)
+    since_iso = period_start_dt.isoformat()
+    today = now.date()
+
+    # ── Machines ────────────────────────────────────────────────────
+    try:
+        machines = ReportMachines(
+            registered=_count_in("machines", "created_at", since_iso),
+            status_changes=_count_in("machine_status_log", "created_at", since_iso),
+            delivered=_count_in(
+                "machine_status_log", "created_at", since_iso, to_status="delivered"
+            ),
+        )
+    except Exception:
+        machines = ReportMachines()
+
+    # ── Warranties ──────────────────────────────────────────────────
+    try:
+        created_count = _count_in("warranty", "created_at", since_iso)
+
+        # expiring_this_week: end_date in [today, today + 7 days]
+        next_week_iso = (today + timedelta(days=7)).isoformat()
+        try:
+            expiring_count = (
+                supabase_admin.table("warranty")
+                .select("id", count="exact")
+                .gte("end_date", today.isoformat())
+                .lte("end_date", next_week_iso)
+                .execute()
+                .count
+                or 0
+            )
+        except Exception:
+            expiring_count = 0
+
+        # expired_in_period: end_date between period_start.date() and today (inclusive)
+        try:
+            expired_count = (
+                supabase_admin.table("warranty")
+                .select("id", count="exact")
+                .gte("end_date", period_start_dt.date().isoformat())
+                .lte("end_date", today.isoformat())
+                .execute()
+                .count
+                or 0
+            )
+        except Exception:
+            expired_count = 0
+
+        warranties = ReportWarranties(
+            created=created_count,
+            expiring_this_week=expiring_count,
+            expired_in_period=expired_count,
+        )
+    except Exception:
+        warranties = ReportWarranties()
+
+    # ── Reservations ────────────────────────────────────────────────
+    # `created` filters on created_at; the rest filter on updated_at since
+    # the row changes status without creating a new row.
+    try:
+        reservations = ReportReservations(
+            created=_count_in("reservations", "created_at", since_iso),
+            approved=_count_in("reservations", "updated_at", since_iso, status="approved"),
+            denied=_count_in("reservations", "updated_at", since_iso, status="denied"),
+            expired=_count_in("reservations", "updated_at", since_iso, status="expired"),
+        )
+    except Exception:
+        reservations = ReportReservations()
+
+    # ── Issues ──────────────────────────────────────────────────────
+    try:
+        issues = ReportIssues(
+            opened=_count_in("machine_issues", "created_at", since_iso),
+            resolved=(
+                _count_in("machine_issues", "updated_at", since_iso, status="resolved")
+                + _count_in("machine_issues", "updated_at", since_iso, status="closed")
+            ),
+            average_resolution_hours=_avg_resolution_hours(since_iso),
+        )
+    except Exception:
+        issues = ReportIssues()
+
+    # ── Stock ───────────────────────────────────────────────────────
+    try:
+        stock = ReportStock(
+            batches_added=_count_in("consumable_batches", "created_at", since_iso),
+            shipments=_count_in("consumable_batches", "shipped_date", since_iso),
+            low_stock_items=_low_stock_count(),
+        )
+    except Exception:
+        stock = ReportStock()
+
+    # ── Top rep ─────────────────────────────────────────────────────
+    try:
+        top_rep = _build_top_rep(since_iso)
+    except Exception:
+        top_rep = ReportTopRep()
+
+    return SummaryReportResponse(
+        period=period,
+        date_range=ReportDateRange(
+            from_date=period_start_dt.date(),
+            to_date=today,
+        ),
+        machines=machines,
+        warranties=warranties,
+        reservations=reservations,
+        issues=issues,
+        stock=stock,
+        top_rep=top_rep,
+    )

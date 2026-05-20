@@ -40,7 +40,7 @@ ElixirX Sales Portal — full-stack web app for Core Pacific Inc.
 | 1  | Authentication | ✅ Complete |
 | 2  | Inventory & Batch Tracking | ✅ Complete |
 | 3  | Machine Lifecycle & Warranty | ✅ Complete |
-| 4  | Dashboard & Notifications | 🔄 In Progress (4.0–4.2 done) |
+| 4  | Dashboard & Notifications | ✅ Complete |
 | 5  | Leads & Customers | ⏳ Pending |
 | 6  | Orders | ⏳ Pending |
 | 7  | Commissions | ⏳ Pending |
@@ -71,16 +71,12 @@ ElixirX Sales Portal — full-stack web app for Core Pacific Inc.
 | 4.0 | Dashboard layout + summary endpoint (`GET /api/dashboard/summary`) | ✅ Done |
 | 4.1 | Warranty expiration alerts widget (extend + certificate actions) | ✅ Done |
 | 4.2 | Low stock alerts widget (mini cards, progress bar, OUT OF STOCK badge) | ✅ Done |
-| 4.3 | Activity feed | ⏳ Pending |
-| 4.4 | Issue tracker widget | ⏳ Pending |
-| 4.5 | Notification bell | ⏳ Pending |
-| 4.6 | Summary reports | ⏳ Pending |
-| 4.7 | Role-based views | ⏳ Pending |
-| 4.8 | Sprint 4 full test pass | ⏳ Pending |
-
-> Note: data for the 4.3 activity feed and 4.4 issues widget already ships in
-> `/api/dashboard/summary` (`recent_activity`, `recent_issues`). The pending
-> tasks are the dedicated UI / interaction layers.
+| 4.3 | Activity feed — timeline UI + dedicated `GET /api/activity` endpoint | ✅ Done |
+| 4.4 | Issue tracker widget — priority-sorted cards + Start/Resolve quick actions | ✅ Done |
+| 4.5 | Notification bell + full `/notifications` page (filter tabs, bulk actions) | ✅ Done |
+| 4.6 | Daily/weekly summary report (`GET /api/dashboard/report`) | ✅ Done |
+| 4.7 | Role-based views — rep `my_reservations` / `my_issues` lists, admin-only report | ✅ Done |
+| 4.8 | Sprint 4 full test pass (41/41 green) | ✅ Done |
 
 ## Key Architecture Decisions
 
@@ -132,21 +128,22 @@ ElixirX Sales Portal — full-stack web app for Core Pacific Inc.
 | `reservations` | `/api/reservations` (request/approve/deny/cancel/expire) + by-account analytics |
 | `issues` | `/api/issues` (CRUD + status), `/summary`, `/machine/{id}` |
 | `notifications` | `/api/notifications` (list/read/clear), `/unread-count`, `/read-all`, `/broadcast` |
-| `dashboard` | `/api/dashboard/summary` (Sprint 4 — aggregates all sections in one round trip) |
+| `dashboard` | `/api/dashboard/summary` (one-round-trip aggregate), `/api/dashboard/report?period=daily\|weekly` (Task 4.6), `/api/activity` (Task 4.3 — paginated status-change feed) |
 
 ## Frontend Pages
 
-14 pages under `frontend/src/pages/`:
+15 pages under `frontend/src/pages/`:
 
 | Page | Purpose |
 |------|---------|
 | `Login.tsx` | Email + password login |
 | `AdminSetup.tsx` | One-time super-admin bootstrap |
-| `Dashboard.tsx` | Sprint 4 dashboard (summary cards, alerts, activity feed) |
+| `Dashboard.tsx` | Sprint 4 dashboard — summary cards, all alert widgets, activity timeline, issue tracker, summary report, rep view |
 | `Inventory.tsx` | Three-tab inventory (Machines / Filters / Consumables) |
 | `MachineDetail.tsx` | Full lifecycle view: status, warranty, reservations, issues |
 | `Warranty.tsx` | Warranty list + dashboard tab |
 | `Issues.tsx` | Issue tracker |
+| `Notifications.tsx` | Sprint 4.5 — full notifications page with filter tabs + bulk actions |
 | `UserManagement.tsx` | Admin: rep invite + management |
 | `SettingsPage.tsx` | User profile + system config |
 | `Leads.tsx` | Sprint 5 stub |
@@ -204,21 +201,26 @@ Admin requests to `PUT /api/machines/{identifier}/status` may include `force=tru
 
 `GET /api/dashboard/summary` aggregates everything in one round trip — no per-section endpoints. Sub-section failures are best-effort: a single missing table returns its zero/empty default and the rest of the response still loads.
 
-Sections:
+Sections (admin sees all; rep sees the same shape with reservations/issues filtered to their own rows):
 - `machines` — counts grouped by status
 - `warranties` — active / expiring_soon / expired / total
 - `issues` — counts by status + urgent/high breakdown (filtered to caller for reps)
 - `reservations` — counts by status (filtered to caller for reps)
 - `low_stock` — items below `min_threshold` + `total_tracked` (Task 4.2)
 - `recent_activity` — last 10 `machine_status_log` entries with rep name
-- `recent_issues` — top 5 open/in_progress issues sorted by priority then recency
+- `recent_issues` / `open_issues` — top 5 open/in_progress issues sorted by priority then recency (same payload under two names)
 - `expiring_warranties` — warranties expiring within 30 days
 - `expired_warranties` — warranties already past `end_date`
+- `my_reservations`, `my_issues` (Task 4.7) — rep-only personal lists; `null` for admins so the frontend can branch on presence
+
+Companion endpoints:
+- `GET /api/activity?limit=&offset=&machine_id=&changed_by=&date_from=&date_to=` (Task 4.3) — paginated status-change feed with full filter set; `machine_id` accepts UUID or serial
+- `GET /api/dashboard/report?period=daily|weekly` (Task 4.6) — machines / warranties / reservations / issues / stock / top-rep aggregates for the last 24h or 7 days, each section best-effort
 
 ## Testing
 
-- **Total tests:** 138 (sprint1: 12, sprint2: 30, sprint3: 88, sprint4: 10).
-- **Test files (8):** `test_auth.py`, `test_dashboard.py`, `test_inventory.py`, `test_issues.py`, `test_machine_lifecycle.py`, `test_notifications.py`, `test_reservations.py`, `test_warranty.py`.
+- **Total tests:** 169 (sprint1: 12, sprint2: 30, sprint3: 88, sprint4: 41). Full suite green.
+- **Test files (9):** `test_auth.py`, `test_dashboard.py`, `test_inventory.py`, `test_issues.py`, `test_machine_lifecycle.py`, `test_notifications.py`, `test_notification_bell.py`, `test_reservations.py`, `test_warranty.py`.
 - Test credentials live in [`backend/tests/conftest.py`](backend/tests/conftest.py) — three sessions: super_admin, admin, rep.
 - Test data uses `TEST-` / `RX-` / `LOT-` / `SKU-` prefix (with random suffix via `unique_id()`) for easy identification and cleanup.
 - pytest config at [`backend/pytest.ini`](backend/pytest.ini) sets `pythonpath = . tests` so `from conftest import unique_id` resolves.
@@ -227,7 +229,7 @@ Sections:
 ### Markers (declared in `backend/pytest.ini`)
 
 - **Sprint level:** `sprint1`, `sprint2`, `sprint3`, `sprint4`
-- **Task level:** `sprint3_1` … `sprint3_9`, `sprint4_0` … `sprint4_8`
+- **Task level:** `sprint3_1` … `sprint3_9`, `sprint4_0` … `sprint4_8` (every Sprint 4 task has its own marker — Watch Mode uses these for per-file dispatch)
 - Test files declare `pytestmark = pytest.mark.sprintN` at module level so every test inherits the sprint tag without per-method decoration.
 - Per-method `@pytest.mark.sprintN_M` adds the task-level tag on top.
 - **Workflow:** task-level (`-m sprint4_2`) during development, sprint-level (`-m sprint4`) before push, all tests before merge.
@@ -240,7 +242,7 @@ Sections:
 | `pytest tests/ -v -m sprint4` | Run a sprint |
 | `pytest tests/ -v -m sprint4_2` | Run a single task |
 | `pytest tests/test_dashboard.py -v` | Run a file |
-| `pytest tests/test_dashboard.py::TestLowStockAlerts::test_dashboard_low_stock_structure -v` | Run one test |
+| `pytest tests/test_dashboard.py::TestSummaryReport -v` | Run one class (e.g. Sprint 4.6 report tests) |
 | `pytest tests/ -v -x` | Stop on first failure |
 | `.\run_tests.ps1` / `.\run_tests.ps1 -Sprint 3` | PowerShell runner |
 | `run_tests.bat` / `run_tests.bat 3` | CMD runner |
@@ -292,11 +294,12 @@ Lives in [`mcp_server/agent/`](mcp_server/agent/). Four modes — two run in a t
 
 **Watch Mode** — file-watcher that runs the right tests for the right file.
 - Start: `.\mcp_server\agent\watch.ps1` (or `watch.bat`)
-- Recursively watches `backend/app/` and `frontend/src/`
-- On `.py` save: detects sprint via filename → product-area map (`SPRINT_MAP` in `agent/config.py`) and runs `pytest -m sprintN`
+- Recursively watches `backend/app/`, `backend/tests/`, and `frontend/src/`
+- On `.py` save: resolves via 4-tier priority — filename match in `FILE_TO_MARKER` → path-segment fallback → sibling `tests/test_<stem>.py` → skip. Task-level markers preferred (e.g. `warranty.py → sprint3_2`) for tight feedback
+- Saving a `tests/test_*.py` file runs **only that file** — never a whole sprint
 - On `.ts`/`.tsx` save: runs `npx tsc --noEmit`
-- 2-second debounce coalesces editor-save bursts
-- Failures persisted to `mcp_server/agent/last_failure.json`
+- 1.5-second debounce coalesces editor-save bursts
+- Failures persisted to `mcp_server/agent/last_failure.json`; the header line prints the marker level (task-level / sprint-level / file-level)
 
 **Review Mode** — pre-push sanity check.
 - Run: `.\mcp_server\agent\review.ps1` (or `review.bat`)
